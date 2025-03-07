@@ -1,0 +1,71 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+.venv/
+venv/
+env/
+Pipfile
+Pipfile.lock
+poetry.lock
+
+# Log & Debug
+*.log
+*.out
+*.err
+
+# IDE/Editor
+.vscode/
+.idea/
+*.iml
+
+# Testing
+.tox/
+.nox/
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Build
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Packaging
+.DS_Store
+*.tar.gz
+*.zip
+
+# Virtualenv
+*.venv/
+.env/
+
+# Secrets
+.env
+*.key
+*.pem
+
+# Documentation
+docs/_build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# MyPy
+.mypy_cache/
+
+# Black
+*.bak
+
+# Linting
+.pyre/
+.pytype/
+
+# VSCode Workspace Settings
+.vscode/

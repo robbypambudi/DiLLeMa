@@ -1,18 +1,21 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "PackageX"
-version = "0.0.1-charlie"
+name = "DiLLeMa"
+version = "0.1.0"
 description = "This repository contains a docker-compose file that can be used to run a Ray cluster on a single machine"
 readme = "README.md"
-requires-python = ">=3.10"
-dependencies = [
-    "matplotlib",
-    "numpy<1.23.0",
-]
+requires-python = ">=3.12"
+dependencies = []
 authors = [
     { name = "Robby Ulung Pambudi", email = "robby.pambudi10@gmail.com" },
 ]
-license = {file = "LICENSE"}
+license = {text = "MIT"}
+
+[project.urls]
+Homepage = "https://github.com/robbypambudi/DiLLeMa"
+
+[tool.setuptools]
+license-files = ["LICENSE"]
