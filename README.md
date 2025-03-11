@@ -55,3 +55,53 @@ pip install dillema
 ├── Dockerfile                  # Dockerfile untuk deployment
 └── README.md                   # Dokumentasi proyek
 ```
+
+## Flow Diagram
+
+```
+  +------------------------+
+  |    Pengguna (User)     |
+  +------------------------+
+            |
+            v
+  +------------------------+     +------------------------+
+  |    API Server (FastAPI) |<--->|   Ray Worker (Client)  |
+  +------------------------+     +------------------------+
+            |                         ^
+            v                         |
+    +--------------------+    +--------------------+
+    |  Head Node Ray     |----|  Ray Cluster      |
+    |  (Ray Management)  |    | (Worker Nodes)    |
+    +--------------------+    +--------------------+
+            |
+            v
+  +------------------------+
+  |  Model Loading         |
+  |  (LLM Model)           |
+  +------------------------+
+
+```
+
+## Usage
+
+### PRE-REQUISITES
+
+1. **Run the Head Node**: The user first runs the head node to start the Ray cluster.
+
+```bash
+python -m dillema.ray_cluster.head_node --port 6379
+```
+
+2. **Run the Client Node**: After that, the user runs the client node to connect the worker to the head node.
+
+```bash
+python -m dillema.ray_cluster.client_node --head-node-ip <head-node-ip> --port 6379
+```
+
+### SERVE YOUR OWN LLM MODEL
+
+1. Run the API Server: Finally, the user runs the API server to start model serving and receive inference requests.
+
+```bash
+python -m dillema.cli serve --model "meta/llma-" --port 8000 --head-node-ip <head-node-ip>
+```
