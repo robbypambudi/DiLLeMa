@@ -1,5 +1,5 @@
 # dev-dependencies
 pytest==8.3.5
-flake8==7.1.2
 build==1.2.2
 twine==6.1.0
+black==25.1.0

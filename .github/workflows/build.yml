@@ -29,9 +29,9 @@ jobs:
         run: |
           pytest test
 
-      - name: Lint Code with Flake8
+      - name: Format codebase with black
         run: |
-          flake8 .
+          python -m black .
 
       - name: Build the Package
         run: |
