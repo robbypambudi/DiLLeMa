@@ -1,2 +1,6 @@
 from dillema import example 
-print(example.say_hello("Dunia"))
+
+def test_example():
+    assert example.say_hello("Hello") == "Hello, Hello!"
+    assert example.say_hello("World") == "Hello, World!"
+    assert example.say_hello("!@#") == "Hello, !@#!"
