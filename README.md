@@ -2,7 +2,7 @@
 
 DiLLeMa is a distributed Large Language Model (LLM) that can be used to generate text. It is built on top of Ray Framework and VLLM. The purpose of this project is to provide a easy-to-use interface for users to deploy and use LLMs in a distributed setting.
 
-![Architectural](/docs/assets/architecture.png)
+![Architectural](https://raw.githubusercontent.com/robbypambudi/DiLLeMa/refs/heads/main/docs/assets/architecture.png)
 
 ## Installation
 
@@ -86,13 +86,21 @@ pip install dillema
 
 ### PRE-REQUISITES
 
-1. **Run the Head Node**: The user first runs the head node to start the Ray cluster.
+1. For your safety you must to install anaconda and run the following script.
+```bash
+conda create -n dillema
+conda activate dillema
+
+conda install python=3.12.9
+```
+
+2. **Run the Head Node**: The user first runs the head node to start the Ray cluster.
 
 ```bash
 python -m dillema.ray_cluster.head_node --port 6379
 ```
 
-2. **Run the Client Node**: After that, the user runs the client node to connect the worker to the head node.
+3. **Run the Client Node**: After that, the user runs the client node to connect the worker to the head node.
 
 ```bash
 python -m dillema.ray_cluster.client_node --head-node-ip <head-node-ip> --port 6379
