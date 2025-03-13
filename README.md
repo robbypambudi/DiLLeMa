@@ -97,13 +97,13 @@ conda install python=3.12.9
 2. **Run the Head Node**: The user first runs the head node to start the Ray cluster.
 
 ```bash
-python -m dillema.ray_cluster.head_node --port 6379
+python -m dillema.ray_cluster.head_node
 ```
 
 3. **Run the Client Node**: After that, the user runs the client node to connect the worker to the head node.
 
 ```bash
-python -m dillema.ray_cluster.client_node --head-node-ip <head-node-ip> --port 6379
+python -m dillema.ray_cluster.client_node --head-node-ip <head-node-ip>
 ```
 
 ### SERVE YOUR OWN LLM MODEL

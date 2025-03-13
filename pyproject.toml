@@ -27,3 +27,8 @@ license-files = ["LICENSE"]
 
 [tool.setuptools.dynamic]
 version = {attr = "dillema.__version__"}
+
+[options.entry_points]
+console_scripts = [
+    "dillema=start_dillema:main",  # This creates the `dillema` command
+]
