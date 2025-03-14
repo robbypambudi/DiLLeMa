@@ -16,5 +16,10 @@ def print_banner():
     print(BANNER)
 
     
-
+def get_ip_address():
+    """
+    Get the IP address of the current machine.
+    """
+    import socket
+    return socket.gethostbyname(socket.gethostname())
 

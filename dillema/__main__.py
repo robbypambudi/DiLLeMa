@@ -5,6 +5,8 @@ import logging
 import sys
 
 from dillema.common import print_banner
+from dillema.ray_cluster.client_node import start_ray_worker
+from dillema.ray_cluster.head_node import start_ray_head_node
 from . import __version__
 
 
@@ -29,14 +31,14 @@ def main():
     args = parser.parse_args()
 
 
-    if args.start:
-        logging.info("Starting Ray cluster...")
-        # Start Ray cluster
-        pass
-    else:
-        logging.error("No valid command provided")
-        parser.print_help()
-
+    if args.command == "start":
+        if args.node_type == "head":
+            start_ray_head_node(args)
+        elif args.node_type == "worker":
+            start_ray_worker(args)
+        else:
+            parser.print_help()
+            sys.exit(2)
 
 if __name__ == "__main__":
     main()
