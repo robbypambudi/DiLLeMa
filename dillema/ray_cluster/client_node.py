@@ -25,17 +25,3 @@ def start_ray_worker(head_node_ip: str, port: int):
     except Exception as e:
         logging.error(f"Failed to start Ray worker node: {e}")
         raise
-
-def main():
-    # Argument parsing for head node IP and port to connect to
-    parser = argparse.ArgumentParser(description="Connect worker node to Ray head node")
-    parser.add_argument("--head-node-ip", type=str, help="IP address of the head node", required=True)
-    parser.add_argument("--port", type=int, help="Port of the head node", default=6379)
-    
-    args = parser.parse_args()
-    
-    # Start the Ray worker node and connect to the head node
-    start_ray_worker(args.head_node_ip, args.port)
-
-if __name__ == "__main__":
-    main()
