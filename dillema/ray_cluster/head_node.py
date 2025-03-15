@@ -1,3 +1,4 @@
+import os
 import time
 from dillema.common import get_ip_address
 import ray
@@ -10,13 +11,16 @@ def start_ray_head_node(parse_arg: argparse.ArgumentParser):
     """
     logging.basicConfig(level=logging.INFO)
 
+    temp_dir = os.path.abspath("temp")
+
     try:
         ray.init(
             ignore_reinit_error=True,
             include_dashboard=True,
             object_store_memory=10**9,
             dashboard_host='0.0.0.0',
-            _node_name="head_node"
+            _node_name="head_node",
+            _temp_dir=temp_dir
         )
         while True:
             time.sleep(20)

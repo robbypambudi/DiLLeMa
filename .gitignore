@@ -69,3 +69,6 @@ docs/_build/
 
 # VSCode Workspace Settings
 .vscode/
+
+# temp
+temp/

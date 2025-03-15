@@ -30,7 +30,7 @@ def main():
     start_parser.add_argument("--address", type=str, default="localhost", help="Address of the head node (for worker)")
 
     # Only using in client
-    start_parser.add_argument("--head-host", type=str, default="localhost", help="IP address of the head node (for worker)", required=True)
+    start_parser.add_argument("--head-host", type=str, default="localhost", help="IP address of the head node (for worker)")
     start_parser.add_argument("--head-port", type=int, default=6379, help="Port of the head node (for worker)")
 
     # Only using in head
