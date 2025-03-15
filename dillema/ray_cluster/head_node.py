@@ -15,7 +15,7 @@ def start_ray_head_node(parse_arg: argparse.ArgumentParser):
             ignore_reinit_error=True,
             include_dashboard=True,
             object_store_memory=10**9,
-            dashboard_host=get_ip_address(),
+            dashboard_host='0.0.0.0',
             _node_name="head_node"
         )
         while True:
@@ -24,3 +24,4 @@ def start_ray_head_node(parse_arg: argparse.ArgumentParser):
     except Exception as e:
         logging.error(f"Failed to start Ray head node: {e}")
         raise
+ 

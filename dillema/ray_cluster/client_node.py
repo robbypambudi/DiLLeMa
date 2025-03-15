@@ -1,8 +1,8 @@
 import ray
-import argparse
+import time
 import logging
 
-def start_ray_worker(head_node_ip: str, port: int):
+def start_ray_worker(data: dict):
     """
     Start Ray worker node and connect to an existing head node.
     """
@@ -12,15 +12,12 @@ def start_ray_worker(head_node_ip: str, port: int):
         # Ray initialization for worker node
         ray.init(
             ignore_reinit_error=True,  # Ignore error if Ray is already initialized
-            address=f"{head_node_ip}:{port}",  # Connect to head node using IP and port
+            address=f"{data.head_node_ip}:{data.port}",  # Connect to head node using IP and port
         )
-        logging.info(f"Ray worker node connected to head node at {head_node_ip}:{port}")
+        logging.info(f"Ray worker node connected to head node at {data.head_node_ip}:{data.port}")
         
-        # Here you can add the code to do worker tasks, for now, the worker will just run indefinitely.
         while True:
-            # Simulating worker activity (you can add real worker tasks here)
-            logging.info("Worker node is running...")
-            ray.sleep(60)  # Sleep to keep the worker node alive
+            time.sleep(60)
 
     except Exception as e:
         logging.error(f"Failed to start Ray worker node: {e}")
