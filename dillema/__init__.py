@@ -9,4 +9,4 @@ def get_git_version():
         # If Git is not available, return a default version
         return "v0.1.0+unknown"
     
-__version__ = "0.1.4"
+__version__ = "0.1.5"
