@@ -23,11 +23,17 @@ def main():
 
     # Subcommand for starting the Ray cluster
     start_parser = subparsers.add_parser("start", help="Start Ray cluster")
+
+
     start_parser.add_argument("node_type", choices=["head", "worker"], help="Type of node to start")
     start_parser.add_argument("--port", type=int, default=8265, help="Port for the Ray node")
     start_parser.add_argument("--address", type=str, default="localhost", help="Address of the head node (for worker)")
-    start_parser.add_argument("--head-host", type=str, default="localhost", help="IP address of the head node (for worker)")
+
+    # Only using in client
+    start_parser.add_argument("--head-host", type=str, default="localhost", help="IP address of the head node (for worker)", required=True)
     start_parser.add_argument("--head-port", type=int, default=6379, help="Port of the head node (for worker)")
+
+    # Only using in head
     start_parser.add_argument("--dashboard-host", type=str, default="0.0.0.0", help="Host for the Ray dashboard")
     start_parser.add_argument("--object-store-memory", type=int, default=10**9, help="Memory for the Ray object store")
     
@@ -37,12 +43,7 @@ def main():
         if args.node_type == "head":
             start_ray_head_node(args)
         elif args.node_type == "worker":
-            start_ray_worker({
-                "head_node_ip": args.head_host,
-                "port": args.head_port,
-                "dashboard_host": args.dashboard_host,
-                "object_store_memory": args.object_store
-            })
+            start_ray_worker(args)
         else:
             parser.print_help()
             sys.exit(2)
