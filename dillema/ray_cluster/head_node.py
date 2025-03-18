@@ -1,10 +1,10 @@
 import time
-from dillema.common import get_ip_address
 import ray
 import argparse
 import logging
 
-def start_ray_head_node(parse_arg: argparse.ArgumentParser):
+
+def start_ray_head_node(parse_arg: argparse.Namespace):
     """
     Start a Ray head node on the given port.
     """
@@ -14,9 +14,9 @@ def start_ray_head_node(parse_arg: argparse.ArgumentParser):
         ray.init(
             ignore_reinit_error=True,
             include_dashboard=True,
-            object_store_memory=10**9,
-            dashboard_host='0.0.0.0',
-            _node_name="head_node"
+            object_store_memory=parse_arg.object_store_memory,
+            dashboard_host=parse_arg.dashboard_host,
+            _node_name="head_node",
         )
         while True:
             time.sleep(20)
@@ -24,4 +24,4 @@ def start_ray_head_node(parse_arg: argparse.ArgumentParser):
     except Exception as e:
         logging.error(f"Failed to start Ray head node: {e}")
         raise
- 
+
