@@ -3,7 +3,8 @@ import ray
 import time
 import logging
 
-def start_ray_worker(args: argparse.ArgumentParser):
+
+def start_ray_worker(args: argparse.Namespace):
     """
     Start Ray worker node and connect to an existing head node.
     """
@@ -14,13 +15,14 @@ def start_ray_worker(args: argparse.ArgumentParser):
         # Ray initialization for worker node
         ray.init(
             ignore_reinit_error=True,  # Ignore error if Ray is already initialized
-            address=address
+            address=address,
         )
-        logging.info(f"Ray worker node connected to head node at {args.head_host}:{args.head_port}")
-        
+        logging.info(f"Ray worker node connected to head node at ${address}")
+
         while True:
             time.sleep(60)
 
     except Exception as e:
         logging.error(f"Failed to start Ray worker node: {e}")
         raise
+

@@ -32,3 +32,6 @@ version = {attr = "dillema.__version__"}
 console_scripts = [
     "dillema=start_dillema:main",  # This creates the `dillema` command
 ]
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "docs", "build", "temp*"]
