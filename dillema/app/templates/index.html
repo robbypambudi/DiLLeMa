@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Model Serving</title>
+    <link href="/static/css/styles.css" rel="stylesheet" />
+</head>
+<body class="bg-gray-100 min-h-screen">
+<div class="bg-white shadow-lg rounded-2xl p-8 w-full">
+    <h1 class="text-3xl font-bold mb-6 text-center text-blue-600">Serve Your Model</h1>
+
+    <!-- ===== Bagian 1: Daftar Node (Cards) ===== -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {% for n in nodes %}
+        <div class="bg-gray-50 p-4 rounded-lg shadow hover:shadow-md transition">
+            <h2 class="text-lg font-semibold mb-2">Node: {{ n.hostname }}</h2>
+            <p class="text-sm"><span class="font-medium">IP:</span> {{ n.ip }}</p>
+            <p class="text-sm"><span class="font-medium">CPU:</span> {{ n.cpu }}</p>
+            <p class="text-sm"><span class="font-medium">GPU:</span> {{ n.gpu }}</p>
+            <p class="mt-2 text-sm">
+                <span class="font-medium">Status:</span>
+                {% if n.alive %}
+                <span class="text-green-600">Alive</span>
+                {% else %}
+                <span class="text-red-600">Down</span>
+                {% endif %}
+            </p>
+        </div>
+        {% else %}
+        <div class="col-span-full text-center text-gray-500">
+            Tidak ada node ditemukan.
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- ===== Bagian 2: Form Serve Model ===== -->
+</div>
+
+<script>
+
+</script>
+</body>
+</html>
