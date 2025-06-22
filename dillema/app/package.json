@@ -1,0 +1,9 @@
+{
+  "name": "fastapi-tailwind-app",
+  "scripts": {
+    "build": "npx tailwindcss -i ./input.css -o ./static/css/styles.css"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.3.0"
+  }
+}

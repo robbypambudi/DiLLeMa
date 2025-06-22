@@ -8,8 +8,7 @@ description = "This repository contains a docker-compose file that can be used t
 readme = "README.md"
 requires-python = "==3.12.9"
 dependencies = [
-    "vllm==0.7.3",
-    "ray==2.40.0",
+    "ray==2.46.0",
     "ray[default]"
 ]
 dynamic=[ "version" ]
