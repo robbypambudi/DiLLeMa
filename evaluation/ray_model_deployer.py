@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class VLLMModelDeployment:
     """vLLM Model Deployment untuk single GPU"""
 
-    def __init__(self, model_name="Qwen/Qwen2.5-0.5B-Instruct", max_model_len=2048):
+    def __init__(self, model_name="Qwen/Qwen2.5-1.5B-Instruct", max_model_len=2048):
         logger.info(f"Loading model: {model_name}")
 
         # Import vLLM
