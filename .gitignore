@@ -49,7 +49,6 @@ dist/
 # Secrets
 .env
 *.key
-*.pem
 
 # Documentation
 docs/_build/
