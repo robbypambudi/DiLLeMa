@@ -33,6 +33,7 @@ class VLLMModelDeployment:
         self.llm = LLM(
             model=model_name,
             tensor_parallel_size=1,  # Single GPU
+            pipeline_parallel_size=2,
             max_model_len=max_model_len,
             trust_remote_code=True,
             enforce_eager=True,
@@ -266,7 +267,7 @@ def main():
     parser = argparse.ArgumentParser(description="Deploy vLLM model to Ray cluster")
     parser.add_argument("--ray-address", type=str, default=None,
                         help="Ray cluster address (e.g., ray://localhost:10001)")
-    parser.add_argument("--model", type=str, default="Qwen/Qwen2.5-0.5B-Instruct",
+    parser.add_argument("--model", type=str, default="Qwen/Qwen2.5-1.5B-Instruct",
                         help="Model name to deploy")
     parser.add_argument("--max-len", type=int, default=2048,
                         help="Maximum model length")
