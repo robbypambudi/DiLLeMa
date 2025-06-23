@@ -33,6 +33,15 @@ class VLLMModelDeploymentMultiNode:
     def __init__(self, model_name="Qwen/Qwen2.5-1.5B-Instruct", max_model_len=2048, use_tensor_parallel=True):
         logger.info(f"Loading model: {model_name} on multi-node cluster")
         
+        # Fix CUDA_VISIBLE_DEVICES issue
+        import os
+        if 'CUDA_VISIBLE_DEVICES' in os.environ:
+            if os.environ['CUDA_VISIBLE_DEVICES'] == '':
+                logger.info("Fixing empty CUDA_VISIBLE_DEVICES")
+                del os.environ['CUDA_VISIBLE_DEVICES']
+            else:
+                logger.info(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
+        
         # Import vLLM
         from vllm import LLM, SamplingParams
 
@@ -138,6 +147,15 @@ class VLLMModelDeploymentSingle:
     def __init__(self, model_name="Qwen/Qwen2.5-1.5B-Instruct", max_model_len=2048):
         logger.info(f"Loading model: {model_name} on single GPU")
 
+        # Fix CUDA_VISIBLE_DEVICES issue
+        import os
+        if 'CUDA_VISIBLE_DEVICES' in os.environ:
+            if os.environ['CUDA_VISIBLE_DEVICES'] == '':
+                logger.info("Fixing empty CUDA_VISIBLE_DEVICES")
+                del os.environ['CUDA_VISIBLE_DEVICES']
+            else:
+                logger.info(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
+
         from vllm import LLM, SamplingParams
 
         self.llm = LLM(
@@ -205,9 +223,37 @@ class ModelDeployer:
         self.ray_address = ray_address
         self.connected = False
 
+    def _fix_cuda_env(self):
+        """Fix CUDA environment variables untuk Ray"""
+        import os
+        
+        # Check dan fix CUDA_VISIBLE_DEVICES
+        if 'CUDA_VISIBLE_DEVICES' in os.environ:
+            current_value = os.environ['CUDA_VISIBLE_DEVICES']
+            if current_value == '':
+                logger.warning("CUDA_VISIBLE_DEVICES is set to empty string, removing it")
+                del os.environ['CUDA_VISIBLE_DEVICES']
+            else:
+                logger.info(f"CUDA_VISIBLE_DEVICES is set to: {current_value}")
+        else:
+            logger.info("CUDA_VISIBLE_DEVICES not set")
+        
+        # Set default CUDA environment untuk multi-GPU
+        os.environ.setdefault('CUDA_LAUNCH_BLOCKING', '0')
+        os.environ.setdefault('NCCL_DEBUG', 'INFO')
+        
+        # Set vLLM specific environment variables
+        os.environ.setdefault('VLLM_WORKER_MULTIPROC_METHOD', 'spawn')
+        os.environ.setdefault('VLLM_USE_MODELSCOPE', 'False')
+        
+        logger.info("CUDA environment fixed for Ray deployment")
+
     def connect_to_cluster(self):
         """Connect ke Ray cluster"""
         logger.info(f"Connecting to Ray cluster: {self.ray_address or 'auto-detect'}")
+
+        # Fix CUDA environment sebelum init Ray
+        self._fix_cuda_env()
 
         try:
             if self.ray_address:
@@ -251,6 +297,401 @@ class ModelDeployer:
 
         except Exception as e:
             logger.error(f"Failed to connect to cluster: {e}")
+            return False
+
+    def deploy_model_simple(self, model_name="Qwen/Qwen2.5-1.5B-Instruct", max_model_len=2048):
+        """Deploy model dengan approach sederhana (recommended untuk troubleshooting)"""
+        if not self.connected:
+            logger.error("Not connected to Ray cluster")
+            return False
+
+        logger.info(f"Deploying model dengan approach sederhana: {model_name}")
+
+        # Check cluster configuration
+        cluster_resources = ray.cluster_resources()
+        nodes = ray.nodes()
+        gpu_nodes = [node for node in nodes if node.get('Resources', {}).get('GPU', 0) > 0]
+        
+        if len(gpu_nodes) >= 2:
+            logger.info("Multi-node setup detected, using placement group strategy")
+            return self._deploy_multi_node_placement(model_name, max_model_len)
+        else:
+            logger.info("Single node setup detected, using simple deployment")
+            return self._deploy_single_node_simple(model_name, max_model_len)
+
+    def _deploy_multi_node_placement(self, model_name, max_model_len):
+        """Deploy untuk multi-node dengan placement group yang benar"""
+        try:
+            # Create placement group yang spread across nodes
+            from ray.util.placement_group import placement_group
+            from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
+            
+            pg = placement_group([
+                {"CPU": 2, "GPU": 1},  # Bundle 1: Server 1 (1 GPU)
+                {"CPU": 2, "GPU": 1},  # Bundle 2: Server 2 (1 GPU)
+            ], strategy="SPREAD")  # Force different nodes
+            
+            # Wait for placement group to be ready
+            ray.get(pg.ready(), timeout=60)
+            logger.info("Multi-node placement group created successfully")
+
+            # Create deployment dengan placement group
+            @serve.deployment(
+                name="vllm-model",
+                num_replicas=1,
+                ray_actor_options={
+                    "num_cpus": 2,
+                    "num_gpus": 2,  # Total 2 GPUs across placement group
+                    "scheduling_strategy": PlacementGroupSchedulingStrategy(
+                        placement_group=pg,
+                        placement_group_capture_child_tasks=True
+                    )
+                }
+            )
+            class MultiNodeVLLMDeployment:
+                def __init__(self):
+                    logger.info(f"Loading model multi-node: {model_name}")
+                    
+                    # Environment fix
+                    import os
+                    if 'CUDA_VISIBLE_DEVICES' in os.environ:
+                        if os.environ['CUDA_VISIBLE_DEVICES'] == '':
+                            logger.info("Removing empty CUDA_VISIBLE_DEVICES")
+                            del os.environ['CUDA_VISIBLE_DEVICES']
+                    
+                    os.environ['CUDA_LAUNCH_BLOCKING'] = '0'
+                    os.environ['NCCL_DEBUG'] = 'WARN'
+                    
+                    from vllm import LLM, SamplingParams
+                    
+                    # Multi-node tensor parallelism
+                    self.llm = LLM(
+                        model=model_name,
+                        tensor_parallel_size=2,  # 2 GPUs across nodes
+                        pipeline_parallel_size=1,
+                        max_model_len=max_model_len,
+                        trust_remote_code=True,
+                        enforce_eager=True,
+                        gpu_memory_utilization=0.8,
+                        disable_log_stats=True,
+                        distributed_executor_backend="ray",
+                    )
+                    
+                    self.model_name = model_name
+                    logger.info(f"Multi-node model {model_name} loaded successfully!")
+
+                async def generate(self, prompt: str, max_tokens: int = 100, temperature: float = 0.7):
+                    try:
+                        from vllm import SamplingParams
+                        
+                        sampling_params = SamplingParams(
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            stop=["<|endoftext|>", "<|im_end|>"]
+                        )
+                        
+                        outputs = self.llm.generate([prompt], sampling_params)
+                        
+                        if outputs and len(outputs) > 0:
+                            output = outputs[0]
+                            generated_text = output.outputs[0].text
+                            
+                            prompt_tokens = len(prompt.split()) * 1.3
+                            completion_tokens = len(generated_text.split()) * 1.3
+                            
+                            return {
+                                "text": generated_text,
+                                "prompt_tokens": int(prompt_tokens),
+                                "completion_tokens": int(completion_tokens),
+                                "total_tokens": int(prompt_tokens + completion_tokens),
+                                "model": self.model_name,
+                                "deployment_type": "multi_node_placement"
+                            }
+                        
+                        return None
+                        
+                    except Exception as e:
+                        logger.error(f"Generation error: {e}")
+                        return {"error": str(e)}
+
+                async def health_check(self):
+                    return {
+                        "status": "healthy",
+                        "model": self.model_name,
+                        "deployment_type": "multi_node_placement",
+                        "timestamp": time.time()
+                    }
+
+            # Deploy
+            deployment = MultiNodeVLLMDeployment.bind()
+            serve.run(deployment, name="vllm-model", route_prefix="/")
+
+            if self._wait_for_deployment():
+                logger.info("Multi-node placement deployment successful!")
+                self._save_deployment_info(model_name, max_model_len, "multi_node_placement", "tensor_parallel")
+                return True
+            else:
+                logger.error("Multi-node placement deployment failed")
+                return False
+
+        except Exception as e:
+            logger.error(f"Multi-node placement deployment error: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _deploy_single_node_simple(self, model_name, max_model_len):
+        """Deploy untuk single node atau fallback"""
+        try:
+            # Simple deployment tanpa placement group complexity
+            @serve.deployment(
+                name="vllm-model",
+                num_replicas=1,
+                ray_actor_options={
+                    "num_cpus": 2,
+                    "num_gpus": 1  # Single GPU only
+                }
+            )
+            class SimpleVLLMDeployment:
+                def __init__(self):
+                    logger.info(f"Loading model single GPU: {model_name}")
+                    
+                    # Environment fix
+                    import os
+                    if 'CUDA_VISIBLE_DEVICES' in os.environ:
+                        if os.environ['CUDA_VISIBLE_DEVICES'] == '':
+                            logger.info("Removing empty CUDA_VISIBLE_DEVICES")
+                            del os.environ['CUDA_VISIBLE_DEVICES']
+                    
+                    os.environ['CUDA_LAUNCH_BLOCKING'] = '0'
+                    
+                    from vllm import LLM, SamplingParams
+                    
+                    # Single GPU setup
+                    self.llm = LLM(
+                        model=model_name,
+                        tensor_parallel_size=1,
+                        pipeline_parallel_size=1,
+                        max_model_len=max_model_len,
+                        trust_remote_code=True,
+                        enforce_eager=True,
+                        gpu_memory_utilization=0.8,
+                        disable_log_stats=True,
+                    )
+                    
+                    self.model_name = model_name
+                    logger.info(f"Single GPU model {model_name} loaded successfully!")
+
+                async def generate(self, prompt: str, max_tokens: int = 100, temperature: float = 0.7):
+                    try:
+                        from vllm import SamplingParams
+                        
+                        sampling_params = SamplingParams(
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            stop=["<|endoftext|>", "<|im_end|>"]
+                        )
+                        
+                        outputs = self.llm.generate([prompt], sampling_params)
+                        
+                        if outputs and len(outputs) > 0:
+                            output = outputs[0]
+                            generated_text = output.outputs[0].text
+                            
+                            prompt_tokens = len(prompt.split()) * 1.3
+                            completion_tokens = len(generated_text.split()) * 1.3
+                            
+                            return {
+                                "text": generated_text,
+                                "prompt_tokens": int(prompt_tokens),
+                                "completion_tokens": int(completion_tokens),
+                                "total_tokens": int(prompt_tokens + completion_tokens),
+                                "model": self.model_name,
+                                "deployment_type": "single_gpu"
+                            }
+                        
+                        return None
+                        
+                    except Exception as e:
+                        logger.error(f"Generation error: {e}")
+                        return {"error": str(e)}
+
+                async def health_check(self):
+                    return {
+                        "status": "healthy",
+                        "model": self.model_name,
+                        "deployment_type": "single_gpu",
+                        "timestamp": time.time()
+                    }
+
+            # Deploy
+            deployment = SimpleVLLMDeployment.bind()
+            serve.run(deployment, name="vllm-model", route_prefix="/")
+
+            if self._wait_for_deployment():
+                logger.info("Single GPU deployment successful!")
+                self._save_deployment_info(model_name, max_model_len, "single_gpu", "single")
+                return True
+            else:
+                logger.error("Single GPU deployment failed")
+                return False
+
+        except Exception as e:
+            logger.error(f"Single GPU deployment error: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def deploy_model_with_env_fix(self, model_name="Qwen/Qwen2.5-1.5B-Instruct", max_model_len=2048):
+        """Deploy model dengan explicit environment fix untuk CUDA_VISIBLE_DEVICES"""
+        if not self.connected:
+            logger.error("Not connected to Ray cluster")
+            return False
+
+        logger.info(f"Deploying model dengan environment fix: {model_name}")
+
+        try:
+            # Create deployment dengan proper runtime_env (no None values)
+            @serve.deployment(
+                name="vllm-model",
+                num_replicas=1,
+                ray_actor_options={
+                    "num_cpus": 2,
+                    "num_gpus": 2,  # 2 GPUs for multi-node
+                    "runtime_env": {
+                        "env_vars": {
+                            # Set proper string values (no None allowed)
+                            "CUDA_LAUNCH_BLOCKING": "0",
+                            "NCCL_DEBUG": "WARN",
+                            "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+                            "VLLM_USE_MODELSCOPE": "False",
+                            "PYTHONPATH": "/usr/local/lib/python3.9/site-packages"
+                        }
+                    }
+                }
+            )
+            class FixedVLLMDeployment:
+                def __init__(self):
+                    logger.info(f"Loading model dengan environment fix: {model_name}")
+                    
+                    # Explicit environment fix di dalam actor
+                    import os
+                    
+                    # Remove empty CUDA_VISIBLE_DEVICES if present
+                    if 'CUDA_VISIBLE_DEVICES' in os.environ:
+                        if os.environ['CUDA_VISIBLE_DEVICES'] == '':
+                            logger.info("Removing empty CUDA_VISIBLE_DEVICES inside actor")
+                            del os.environ['CUDA_VISIBLE_DEVICES']
+                        else:
+                            logger.info(f"CUDA_VISIBLE_DEVICES inside actor: {os.environ['CUDA_VISIBLE_DEVICES']}")
+                    
+                    # Set helpful CUDA flags
+                    os.environ['CUDA_LAUNCH_BLOCKING'] = '0'
+                    os.environ['NCCL_DEBUG'] = 'WARN'
+                    os.environ['VLLM_WORKER_MULTIPROC_METHOD'] = 'spawn'
+                    
+                    # Import setelah environment fix
+                    try:
+                        from vllm import LLM, SamplingParams
+                        logger.info("vLLM imported successfully")
+                    except Exception as e:
+                        logger.error(f"Failed to import vLLM: {e}")
+                        raise
+                    
+                    # Create LLM dengan explicit config untuk multi-node
+                    try:
+                        self.llm = LLM(
+                            model=model_name,
+                            tensor_parallel_size=2,  # 2 GPUs across nodes
+                            pipeline_parallel_size=1,
+                            max_model_len=max_model_len,
+                            trust_remote_code=True,
+                            enforce_eager=True,
+                            gpu_memory_utilization=0.8,
+                            disable_log_stats=True,
+                            distributed_executor_backend="ray",
+                            # Additional flags untuk fix CUDA issues
+                            enable_chunked_prefill=False,
+                            max_num_seqs=32,
+                        )
+                        logger.info("vLLM LLM instance created successfully")
+                    except Exception as e:
+                        logger.error(f"Failed to create vLLM LLM instance: {e}")
+                        # Try fallback dengan single GPU
+                        logger.info("Trying fallback to single GPU...")
+                        self.llm = LLM(
+                            model=model_name,
+                            tensor_parallel_size=1,  # Fallback to single GPU
+                            pipeline_parallel_size=1,
+                            max_model_len=max_model_len,
+                            trust_remote_code=True,
+                            enforce_eager=True,
+                            gpu_memory_utilization=0.8,
+                            disable_log_stats=True,
+                        )
+                    
+                    self.model_name = model_name
+                    logger.info(f"Model {model_name} loaded successfully dengan environment fix!")
+
+                async def generate(self, prompt: str, max_tokens: int = 100, temperature: float = 0.7):
+                    try:
+                        from vllm import SamplingParams
+                        
+                        sampling_params = SamplingParams(
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            stop=["<|endoftext|>", "<|im_end|>"]
+                        )
+                        
+                        outputs = self.llm.generate([prompt], sampling_params)
+                        
+                        if outputs and len(outputs) > 0:
+                            output = outputs[0]
+                            generated_text = output.outputs[0].text
+                            
+                            prompt_tokens = len(prompt.split()) * 1.3
+                            completion_tokens = len(generated_text.split()) * 1.3
+                            
+                            return {
+                                "text": generated_text,
+                                "prompt_tokens": int(prompt_tokens),
+                                "completion_tokens": int(completion_tokens),
+                                "total_tokens": int(prompt_tokens + completion_tokens),
+                                "model": self.model_name,
+                                "deployment_type": "environment_fixed"
+                            }
+                        
+                        return None
+                        
+                    except Exception as e:
+                        logger.error(f"Generation error: {e}")
+                        return {"error": str(e)}
+
+                async def health_check(self):
+                    return {
+                        "status": "healthy",
+                        "model": self.model_name,
+                        "deployment_type": "environment_fixed",
+                        "timestamp": time.time()
+                    }
+
+            # Deploy dengan environment fix
+            deployment = FixedVLLMDeployment.bind()
+            serve.run(deployment, name="vllm-model", route_prefix="/")
+
+            # Wait for deployment to be ready
+            if self._wait_for_deployment():
+                logger.info("Model deployed successfully dengan environment fix!")
+                self._save_deployment_info(model_name, max_model_len, "environment_fixed", "tensor_parallel")
+                return True
+            else:
+                logger.error("Environment fix deployment failed or timed out")
+                return False
+
+        except Exception as e:
+            logger.error(f"Environment fix deployment error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def deploy_model_multi_node(self, model_name="Qwen/Qwen2.5-1.5B-Instruct", max_model_len=2048, use_tensor_parallel=True):
@@ -356,6 +797,15 @@ class ModelDeployer:
             class CustomMultiNodeVLLM:
                 def __init__(self):
                     logger.info(f"Loading model with custom placement: {model_name}")
+                    
+                    # Fix CUDA_VISIBLE_DEVICES issue
+                    import os
+                    if 'CUDA_VISIBLE_DEVICES' in os.environ:
+                        if os.environ['CUDA_VISIBLE_DEVICES'] == '':
+                            logger.info("Fixing empty CUDA_VISIBLE_DEVICES")
+                            del os.environ['CUDA_VISIBLE_DEVICES']
+                        else:
+                            logger.info(f"CUDA_VISIBLE_DEVICES: {os.environ['CUDA_VISIBLE_DEVICES']}")
                     
                     from vllm import LLM, SamplingParams
                     
@@ -585,8 +1035,8 @@ def main():
     parser.add_argument("--max-len", type=int, default=2048,
                         help="Maximum model length")
     parser.add_argument("--action", type=str, 
-                        choices=["deploy-multi", "deploy-single", "deploy-custom", "status", "stop"],
-                        default="deploy-multi", help="Action to perform")
+                        choices=["deploy-simple", "deploy-single-safe", "deploy-multi", "deploy-single", "deploy-custom", "deploy-fixed", "status", "stop"],
+                        default="deploy-simple", help="Action to perform")
     parser.add_argument("--parallelism", type=str, choices=["tensor", "pipeline"],
                         default="tensor", help="Parallelism strategy for multi-node")
 
@@ -626,7 +1076,34 @@ def main():
         print()
 
         # Perform action
-        if args.action == "deploy-multi":
+        if args.action == "deploy-simple":
+            print(f"Deploying model dengan smart approach: {args.model}")
+            if deployer.deploy_model_simple(args.model, args.max_len):
+                print("✓ Model deployed successfully!")
+                print("Menggunakan strategi optimal untuk cluster setup Anda")
+                print("You can now run the evaluator script.")
+            else:
+                print("✗ Smart deployment failed")
+
+        elif args.action == "deploy-single-safe":
+            print(f"Deploying model dengan single GPU (safe mode): {args.model}")
+            if deployer._deploy_single_node_simple(args.model, args.max_len):
+                print("✓ Single GPU model deployed successfully!")
+                print("Menggunakan hanya 1 GPU dari cluster Anda")
+                print("You can now run the evaluator script.")
+            else:
+                print("✗ Single GPU safe deployment failed")
+
+        elif args.action == "deploy-fixed":
+            print(f"Deploying model dengan CUDA environment fix: {args.model}")
+            if deployer.deploy_model_with_env_fix(args.model, args.max_len):
+                print("✓ Model deployed successfully dengan environment fix!")
+                print("CUDA_VISIBLE_DEVICES issue telah diperbaiki")
+                print("You can now run the evaluator script.")
+            else:
+                print("✗ Environment fix deployment failed")
+
+        elif args.action == "deploy-multi":
             print(f"Deploying model untuk multi-node: {args.model}")
             print(f"Parallelism strategy: {args.parallelism}")
             use_tensor = args.parallelism == "tensor"
