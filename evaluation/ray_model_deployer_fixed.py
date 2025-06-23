@@ -342,10 +342,6 @@ class ModelDeployer:
                 ray_actor_options={
                     "num_cpus": 2,
                     "num_gpus": 2,  # Total 2 GPUs across placement group
-                    "scheduling_strategy": PlacementGroupSchedulingStrategy(
-                        placement_group=pg,
-                        placement_group_capture_child_tasks=True
-                    )
                 }
             )
             class MultiNodeVLLMDeployment:
@@ -788,10 +784,6 @@ class ModelDeployer:
                 ray_actor_options={
                     "num_cpus": 2,
                     "num_gpus": 2,  # Total 2 GPUs
-                    "scheduling_strategy": PlacementGroupSchedulingStrategy(
-                        placement_group=pg,
-                        placement_group_capture_child_tasks=True
-                    )
                 }
             )
             class CustomMultiNodeVLLM:
