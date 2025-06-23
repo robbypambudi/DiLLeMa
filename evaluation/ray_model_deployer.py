@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Ray Model Deployer
-Script untuk deploy vLLM model ke Ray cluster
+Ray Model Deployer (Fixed)
+Script untuk deploy vLLM model ke Ray cluster dengan proper GPU placement
 """
 
 import time
@@ -11,6 +11,8 @@ import argparse
 
 import ray
 from ray import serve
+from ray.util.placement_group import placement_group
+from ray.util.scheduling_strategies import PlacementGroupSchedulingStrategy
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -18,10 +20,15 @@ logger = logging.getLogger(__name__)
 @serve.deployment(
     name="vllm-model",
     num_replicas=1,
-    ray_actor_options={"num_gpus": 1}
+    # Use placement_group_bundles instead of ray_actor_options for GPU placement
+    placement_group_bundles=[
+        {"CPU": 1, "GPU": 1},  # Main replica bundle with GPU
+        {"CPU": 2}             # Additional CPU bundle for vLLM workers
+    ],
+    placement_group_strategy="STRICT_PACK"  # Keep all bundles on same node
 )
 class VLLMModelDeployment:
-    """vLLM Model Deployment untuk single GPU"""
+    """vLLM Model Deployment dengan proper GPU placement strategy"""
 
     def __init__(self, model_name="Qwen/Qwen2.5-1.5B-Instruct", max_model_len=2048):
         logger.info(f"Loading model: {model_name}")
@@ -30,15 +37,17 @@ class VLLMModelDeployment:
         from vllm import LLM, SamplingParams
 
         # Initialize model dengan config untuk single GPU
+        # Force vLLM to use Ray backend for proper GPU placement
         self.llm = LLM(
             model=model_name,
             tensor_parallel_size=1,  # Single GPU
-            pipeline_parallel_size=2,
+            pipeline_parallel_size=1,  # Fix: changed from 2 to 1 for single GPU
             max_model_len=max_model_len,
             trust_remote_code=True,
             enforce_eager=True,
             gpu_memory_utilization=0.8,
             disable_log_stats=True,
+            distributed_executor_backend="ray",  # Force Ray backend
         )
 
         self.model_name = model_name
@@ -98,7 +107,7 @@ class VLLMModelDeployment:
         }
 
 class ModelDeployer:
-    """Class untuk manage deployment"""
+    """Class untuk manage deployment dengan GPU placement strategy"""
 
     def __init__(self, ray_address=None):
         self.ray_address = ray_address
@@ -123,6 +132,15 @@ class ModelDeployer:
                 logger.error("No GPU available in cluster!")
                 return False
 
+            # Check if we have GPU nodes
+            nodes = ray.nodes()
+            gpu_nodes = [node for node in nodes if node.get('Resources', {}).get('GPU', 0) > 0]
+            logger.info(f"Found {len(gpu_nodes)} GPU nodes in cluster")
+            
+            if len(gpu_nodes) == 0:
+                logger.error("No GPU nodes found in cluster!")
+                return False
+
             self.connected = True
             logger.info("Successfully connected to Ray cluster")
             return True
@@ -132,7 +150,7 @@ class ModelDeployer:
             return False
 
     def deploy_model(self, model_name="Qwen/Qwen2.5-0.5B-Instruct", max_model_len=2048):
-        """Deploy model ke cluster"""
+        """Deploy model ke cluster dengan proper GPU placement"""
         if not self.connected:
             logger.error("Not connected to Ray cluster")
             return False
@@ -140,7 +158,7 @@ class ModelDeployer:
         logger.info(f"Deploying model: {model_name}")
 
         try:
-            # Create deployment
+            # Create deployment dengan placement group untuk GPU
             deployment = VLLMModelDeployment.bind(model_name, max_model_len)
 
             # Deploy dengan route prefix
@@ -157,32 +175,150 @@ class ModelDeployer:
 
         except Exception as e:
             logger.error(f"Deployment error: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
-    def _wait_for_deployment(self, timeout=180):
+    def deploy_model_with_custom_placement(self, model_name="Qwen/Qwen2.5-0.5B-Instruct", max_model_len=2048):
+        """Alternative deployment method dengan manual placement group"""
+        if not self.connected:
+            logger.error("Not connected to Ray cluster")
+            return False
+
+        logger.info(f"Deploying model with custom placement: {model_name}")
+
+        try:
+            # Create manual placement group for GPU resources
+            # This ensures the deployment goes to a node with GPU
+            pg = placement_group([
+                {"CPU": 1, "GPU": 1},  # Main bundle with GPU
+                {"CPU": 2}             # Additional CPU for workers
+            ], strategy="STRICT_PACK")
+            
+            # Wait for placement group to be ready
+            ray.get(pg.ready(), timeout=60)
+            logger.info("Placement group created successfully")
+
+            # Create deployment with custom decorator
+            @serve.deployment(
+                name="vllm-model",
+                num_replicas=1,
+                ray_actor_options={
+                    "num_cpus": 1,
+                    "num_gpus": 1,
+                    "scheduling_strategy": PlacementGroupSchedulingStrategy(
+                        placement_group=pg,
+                        placement_group_bundle_index=0
+                    )
+                }
+            )
+            class CustomVLLMDeployment:
+                def __init__(self):
+                    logger.info(f"Loading model: {model_name}")
+                    
+                    from vllm import LLM, SamplingParams
+                    
+                    self.llm = LLM(
+                        model=model_name,
+                        tensor_parallel_size=1,
+                        pipeline_parallel_size=1,
+                        max_model_len=max_model_len,
+                        trust_remote_code=True,
+                        enforce_eager=True,
+                        gpu_memory_utilization=0.8,
+                        disable_log_stats=True,
+                        distributed_executor_backend="ray",
+                    )
+                    
+                    self.model_name = model_name
+                    logger.info(f"Model {model_name} loaded successfully!")
+
+                async def generate(self, prompt: str, max_tokens: int = 100, temperature: float = 0.7):
+                    try:
+                        from vllm import SamplingParams
+                        
+                        sampling_params = SamplingParams(
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            stop=["<|endoftext|>", "<|im_end|>"]
+                        )
+                        
+                        outputs = self.llm.generate([prompt], sampling_params)
+                        
+                        if outputs and len(outputs) > 0:
+                            output = outputs[0]
+                            generated_text = output.outputs[0].text
+                            
+                            prompt_tokens = len(prompt.split()) * 1.3
+                            completion_tokens = len(generated_text.split()) * 1.3
+                            
+                            return {
+                                "text": generated_text,
+                                "prompt_tokens": int(prompt_tokens),
+                                "completion_tokens": int(completion_tokens),
+                                "total_tokens": int(prompt_tokens + completion_tokens),
+                                "model": self.model_name
+                            }
+                        
+                        return None
+                        
+                    except Exception as e:
+                        logger.error(f"Generation error: {e}")
+                        return {"error": str(e)}
+
+                async def health_check(self):
+                    return {
+                        "status": "healthy",
+                        "model": self.model_name,
+                        "timestamp": time.time()
+                    }
+
+            # Deploy dengan custom placement
+            deployment = CustomVLLMDeployment.bind()
+            serve.run(deployment, name="vllm-model", route_prefix="/")
+
+            # Wait for deployment to be ready
+            if self._wait_for_deployment():
+                logger.info("Model deployed successfully with custom placement!")
+                self._save_deployment_info(model_name, max_model_len)
+                return True
+            else:
+                logger.error("Deployment failed or timed out")
+                return False
+
+        except Exception as e:
+            logger.error(f"Custom deployment error: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _wait_for_deployment(self, timeout=300):  # Increased timeout for vLLM
         """Wait for deployment to be ready"""
         logger.info("Waiting for deployment to be ready...")
         start_time = time.time()
 
         while time.time() - start_time < timeout:
             try:
-                # Get status information as a ServeStatus object
                 status_info = serve.status()
-                logger.info(f"Deployment info: {status_info}")
+                logger.debug(f"Deployment info: {status_info}")
 
-                # Access the applications dictionary from the ServeStatus object
                 if hasattr(status_info, "applications") and "vllm-model" in status_info.applications:
                     app_status = status_info.applications["vllm-model"].status.value
                     logger.info(f"Deployment status: {app_status}")
-                    return app_status
+                    
+                    if app_status == "RUNNING":
+                        return True
+                    elif app_status == "DEPLOY_FAILED":
+                        logger.error("Deployment failed!")
+                        return False
                 else:
-                    logger.info("No deployment found")
-                    return "NOT_DEPLOYED"
+                    logger.debug("Deployment not found yet")
+
             except Exception as e:
                 logger.debug(f"Still waiting for deployment: {e}")
 
             print(".", end="", flush=True)
-            time.sleep(3)
+            time.sleep(5)  # Increased sleep interval
 
         print()
         logger.error("Deployment timeout")
@@ -206,11 +342,9 @@ class ModelDeployer:
     def check_deployment_status(self):
         """Check current deployment status"""
         try:
-            # Get status information as a ServeStatus object
             status_info = serve.status()
             logger.info(f"Deployment info: {status_info}")
 
-            # Access the applications dictionary from the ServeStatus object
             if hasattr(status_info, "applications") and "vllm-model" in status_info.applications:
                 app_status = status_info.applications["vllm-model"].status.value
                 logger.info(f"Deployment status: {app_status}")
@@ -253,10 +387,26 @@ class ModelDeployer:
             return None
 
         try:
+            cluster_resources = ray.cluster_resources()
+            available_resources = ray.available_resources()
+            nodes = ray.nodes()
+            
+            gpu_nodes = [node for node in nodes if node.get('Resources', {}).get('GPU', 0) > 0]
+            
             return {
-                "cluster_resources": ray.cluster_resources(),
-                "available_resources": ray.available_resources(),
-                "nodes": len(ray.nodes())
+                "cluster_resources": cluster_resources,
+                "available_resources": available_resources,
+                "total_nodes": len(nodes),
+                "gpu_nodes": len(gpu_nodes),
+                "gpu_node_details": [
+                    {
+                        "node_id": node.get("NodeID"),
+                        "node_ip": node.get("NodeManagerAddress"),
+                        "gpu_count": node.get('Resources', {}).get('GPU', 0),
+                        "alive": node.get("Alive", False)
+                    }
+                    for node in gpu_nodes
+                ]
             }
         except Exception as e:
             logger.error(f"Error getting cluster info: {e}")
@@ -271,13 +421,13 @@ def main():
                         help="Model name to deploy")
     parser.add_argument("--max-len", type=int, default=2048,
                         help="Maximum model length")
-    parser.add_argument("--action", type=str, choices=["deploy", "status", "stop"],
+    parser.add_argument("--action", type=str, choices=["deploy", "deploy-custom", "status", "stop"],
                         default="deploy", help="Action to perform")
 
     args = parser.parse_args()
 
-    print("Ray Model Deployer")
-    print("==================")
+    print("Ray Model Deployer (Fixed)")
+    print("===========================")
 
     deployer = ModelDeployer(args.ray_address)
 
@@ -293,7 +443,10 @@ def main():
             print(f"Cluster info:")
             print(f"  Total resources: {cluster_info['cluster_resources']}")
             print(f"  Available resources: {cluster_info['available_resources']}")
-            print(f"  Nodes: {cluster_info['nodes']}")
+            print(f"  Total nodes: {cluster_info['total_nodes']}")
+            print(f"  GPU nodes: {cluster_info['gpu_nodes']}")
+            for gpu_node in cluster_info['gpu_node_details']:
+                print(f"    Node {gpu_node['node_id'][:8]}...: {gpu_node['gpu_count']} GPUs, IP: {gpu_node['node_ip']}, Alive: {gpu_node['alive']}")
 
         # Perform action
         if args.action == "deploy":
@@ -303,6 +456,14 @@ def main():
                 print("You can now run the evaluator script.")
             else:
                 print("✗ Deployment failed")
+
+        elif args.action == "deploy-custom":
+            print(f"\nDeploying model with custom placement: {args.model}")
+            if deployer.deploy_model_with_custom_placement(args.model, args.max_len):
+                print("✓ Model deployed successfully with custom placement!")
+                print("You can now run the evaluator script.")
+            else:
+                print("✗ Custom deployment failed")
 
         elif args.action == "status":
             print(f"\nChecking deployment status...")
