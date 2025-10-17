@@ -8,8 +8,10 @@ description = "This repository contains a docker-compose file that can be used t
 readme = "README.md"
 requires-python = "==3.12.9"
 dependencies = [
-    "ray==2.46.0",
-    "ray[default]"
+    "botocore>=1.40.53",
+    "pyarrow>=21.0.0",
+    "ray[default,serve]==2.50.0",
+    "vllm>=0.11.0",
 ]
 dynamic=[ "version" ]
 
@@ -27,10 +29,8 @@ license-files = ["LICENSE"]
 [tool.setuptools.dynamic]
 version = {attr = "dillema.__version__"}
 
-[options.entry_points]
-console_scripts = [
-    "dillema=start_dillema:main",  # This creates the `dillema` command
-]
+[project.scripts]
+dillema = "dillema.cli:main"
 
 [tool.setuptools.packages.find]
 exclude = ["tests*", "docs", "build", "temp*"]
