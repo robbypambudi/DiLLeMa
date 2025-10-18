@@ -41,6 +41,15 @@ def cmd_stop(args):
 def cmd_serve(args):
     ray.init(address=args.ray_address or "auto", ignore_reinit_error=True)
     
+    runtime_env = None
+    if args.network_interface:
+        runtime_env = {
+            "env_vars": {
+                "GLOO_SOCKET_IFNAME": args.network_interface,
+                "NCCL_SOCKET_IFNAME": args.network_interface,
+            }
+        }
+    
     wrapper = LLMServe(
         model_id=args.model_id,
         model_source=args.model_source,
@@ -49,13 +58,22 @@ def cmd_serve(args):
         pipeline_parallel_size=args.pipeline_parallel,
     )
     
-    app = wrapper.build_app(min_replicas=args.min_replicas, max_replicas=args.max_replicas)
+    app = wrapper.build_app(
+        min_replicas=args.min_replicas,
+        max_replicas=args.max_replicas,
+        runtime_env=runtime_env
+    )
+
     
-    print(f"✓ Deploying {args.model_source}...")
-    print(f"✓ Dashboard: http://localhost:8265")
-    print(f"✓ API: http://localhost:8000")
-    
+    host = args.app_host or "0.0.0.0"
+    port = args.app_port or 8000
+
+    serve.start(http_options=serve.config.HTTPOptions(host=host, port=port))
     serve.run(app, blocking=True)
+
+    print(f"✓ Deploying {args.model_source}...")
+    print(f"✓ Dashboard: http://{host}:8265")
+    print(f"✓ API: http://{host}:{port}")
 
 
 def main():
@@ -87,6 +105,9 @@ def main():
     serve_parser.add_argument("--pipeline-parallel", type=int, default=1, help="Pipeline parallel size")
     serve_parser.add_argument("--hf-token", help="HuggingFace token")
     serve_parser.add_argument("--ray-address", help="Ray cluster address")
+    serve_parser.add_argument("--network-interface", help="Network interface for distributed communication (e.g., eth0, enp132s0)")
+    serve_parser.add_argument("--app-host", help="Application host address")
+    serve_parser.add_argument("--app-port", type=int, default=8000, help="Application port number")
     serve_parser.set_defaults(func=cmd_serve)
     
     args = parser.parse_args()

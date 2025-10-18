@@ -27,7 +27,9 @@ class LLMServe:
         default_runtime_env = {"env_vars": {"VLLM_USE_V1": "1"}}
         if self.hf_token:
             default_runtime_env["env_vars"]["HF_TOKEN"] = self.hf_token
-        if runtime_env:
+        if runtime_env and "env_vars" in runtime_env:
+            default_runtime_env["env_vars"].update(runtime_env["env_vars"])
+        elif runtime_env:
             default_runtime_env.update(runtime_env)
         
         llm_config = LLMConfig(
