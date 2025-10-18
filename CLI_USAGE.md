@@ -39,7 +39,7 @@ dillema serve \
   --model-id qwen-0.5b \
   --model-source Qwen/Qwen2.5-0.5B-Instruct \
   --ray-address ray://192.168.1.100:10001 \
-  --tensor-parallel 2
+  --pipeline-parallel 2
 ```
 
 ### 4. Stop Ray
@@ -57,6 +57,9 @@ dillema stop
 - `--tensor-parallel`: Tensor parallel size (default: 1)
 - `--pipeline-parallel`: Pipeline parallel size (default: 1)
 - `--hf-token`: HuggingFace token for gated models
+- `--network-interface`: Network interface for distributed communication (e.g., eth0, enp132s0)
+- `--app-host`: Application host address (default: 0.0.0.0)
+- `--app-port`: Application port number (default: 8000)
 
 ## Library Usage
 
