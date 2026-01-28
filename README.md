@@ -1,115 +1,224 @@
 # DiLLeMa
 
-DiLLeMa is a distributed Large Language Model (LLM) that can be used to generate text. It is built on top of Ray Framework and VLLM. The purpose of this project is to provide a easy-to-use interface for users to deploy and use LLMs in a distributed setting.
+DiLLeMa is a distributed Large Language Model (LLM) serving system that provides an easy-to-use interface for deploying and using LLMs in distributed settings. Built on top of Ray Framework and VLLM, it enables efficient multi-GPU and multi-node deployments.
 
-![Architectural](https://raw.githubusercontent.com/robbypambudi/DiLLeMa/refs/heads/main/docs/assets/architecture.png)
+![Architecture](https://raw.githubusercontent.com/robbypambudi/DiLLeMa/refs/heads/main/docs/assets/architecture.png)
+
+## Features
+
+- **Distributed LLM Serving**: Deploy LLMs across multiple GPUs and nodes using Ray and VLLM
+- **Simple CLI Interface**: Easy-to-use command-line interface for managing Ray clusters and deploying models
+- **OpenAI-Compatible API**: Standard OpenAI-compatible API endpoints for seamless integration
+- **Tensor and Pipeline Parallelism**: Support for both tensor and pipeline parallelism for large models
+- **Auto-scaling**: Automatic scaling of model replicas based on demand
+- **Web UI**: FastAPI-based web interface for managing deployments
 
 ## Installation
+
+### From PyPI
 
 ```bash
 pip install dillema
 ```
 
+### From Source
+
+```bash
+git clone https://github.com/robbypambudi/DiLLeMa.git
+cd DiLLeMa
+pip install -e .
+```
+
+### Prerequisites
+
+- Python 3.12.9
+- CUDA-capable GPU(s) (for GPU acceleration)
+- Ray 2.50.0
+- VLLM >= 0.11.0
+
+> **Note**: For safety, it's recommended to use a conda environment:
+> ```bash
+> conda create -n dillema python=3.12.9
+> conda activate dillema
+> ```
+
 ## Project Structure
 
 ```
-/dillema
+DiLLeMa/
 │
-├── api_gateway/                # API Layer (FastAPI)
-│   ├── __init__.py
-│   ├── main.py                 # Entry point untuk API
-│   ├── endpoints.py            # Definisi endpoint API
-│   └── utils.py                # Utility functions (e.g., request validation)
+├── dillema/                    # Main package
+│   ├── cli.py                  # CLI interface (head, worker, serve, stop commands)
+│   ├── serve/                  # LLM serving module
+│   │   └── llm.py              # Ray Serve LLM wrapper
+│   ├── ray/                    # Ray utilities
+│   │   └── main.py             # Ray container and connection management
+│   └── app/                    # Web UI application
+│       ├── main.py             # FastAPI web interface
+│       └── templates/          # HTML templates
 │
-├── ray_cluster/                # Ray cluster manager & task scheduler
-│   ├── __init__.py
-│   ├── ray_manager.py          # Manajer cluster Ray
-│   ├── task_scheduler.py       # Pembagian tugas ke worker
-│   └── worker_manager.py       # Menangani pengelolaan worker Ray
-│
-├── workers/                    # Worker nodes yang menjalankan LLM inferensi
-│   ├── __init__.py
-│   ├── worker.py               # Kode untuk setiap worker (Actor Ray)
-│   ├── preprocessing.py        # Preprocessing data sebelum inferensi
-│   ├── llm_inference.py        # Kode untuk melakukan inferensi LLM
-│   └── postprocessing.py       # Postprocessing hasil inferensi
-│
-├── models/                     # Model LLM dan penyimpanan
-│   ├── __init__.py
-│   ├── model_loader.py         # Mengelola pemuatan model
-│   ├── model_storage.py        # Mengatur akses ke penyimpanan model (misal S3)
-│   └── model_config.py         # Konfigurasi model yang digunakan
-│
-├── vllm/                       # Implementasi VLLM untuk optimisasi
-│   ├── __init__.py
-│   ├── vllm_batching.py        # Optimasi batching menggunakan VLLM
-│   └── vllm_inference.py       # Integrasi VLLM untuk inference
-│
-├── tests/                      # Unit test dan integration test
-│   ├── __init__.py
-│   ├── test_api.py             # Test API Gateway
-│   ├── test_ray.py             # Test distribusi task ke worker
-│   └── test_inference.py       # Test inferensi LLM dan optimisasi VLLM
-│
-├── requirements.txt            # Dependensi library (Ray, VLLM, FastAPI, dll)
-├── Dockerfile                  # Dockerfile untuk deployment
-└── README.md                   # Dokumentasi proyek
+├── evaluation/                 # Evaluation scripts and tools
+├── analysis/                  # Analysis notebooks and scripts
+├── docs/                      # Documentation and assets
+├── test/                      # Unit tests
+├── pyproject.toml             # Project configuration
+└── requirements.txt           # Python dependencies
 ```
 
 ## Flow Diagram
 
 ```
   +------------------------+
-  |    Pengguna (User)     |
+  |      User/Client        |
   +------------------------+
             |
             v
   +------------------------+     +------------------------+
-  |    API Server (FastAPI) |<--->|   Ray Worker (Client)  |
+  |   API Server (Ray Serve)|<--->|   Ray Head Node        |
+  |   OpenAI-Compatible API |     |   (Ray Management)     |
   +------------------------+     +------------------------+
             |                         ^
             v                         |
     +--------------------+    +--------------------+
-    |  Head Node Ray     |----|  Ray Cluster      |
-    |  (Ray Management)  |    | (Worker Nodes)    |
+    |  Ray Cluster       |----|  Ray Worker Nodes  |
+    |  (Distributed)     |    |  (GPU Workers)     |
     +--------------------+    +--------------------+
             |
             v
   +------------------------+
-  |  Model Loading         |
-  |  (LLM Model)           |
+  |  VLLM Engine           |
+  |  (Model Inference)     |
   +------------------------+
-
+            |
+            v
+  +------------------------+
+  |  LLM Model             |
+  |  (HuggingFace)         |
+  +------------------------+
 ```
 
 ## Usage
 
-### PRE-REQUISITES
+### Single Device Deployment
 
-1. For your safety you must to install anaconda and run the following script.
-```bash
-conda create -n dillema
-conda activate dillema
-
-conda install python=3.12.9
-```
-
-2. **Run the Head Node**: The user first runs the head node to start the Ray cluster.
+Deploy a model on a single machine:
 
 ```bash
-python -m dillema.ray_cluster.head_node
+dillema serve \
+  --model-id qwen-0.5b \
+  --model-source Qwen/Qwen2.5-0.5B-Instruct
 ```
 
-3. **Run the Client Node**: After that, the user runs the client node to connect the worker to the head node.
+### Multi-Node Cluster Deployment
+
+#### 1. Start Head Node
+
+On the head node machine:
 
 ```bash
-python -m dillema.ray_cluster.client_node --head-node-ip <head-node-ip>
+dillema head
+# Output: Connect workers with: dillema worker --address='192.168.1.100:6379'
+# Dashboard: http://192.168.1.100:8265
 ```
 
-### SERVE YOUR OWN LLM MODEL
+#### 2. Start Worker Nodes
 
-1. Run the API Server: Finally, the user runs the API server to start model serving and receive inference requests.
+On each worker machine:
 
 ```bash
-python -m dillema.cli serve --model "meta/llma-" --port 8000 --head-node-ip <head-node-ip>
+dillema worker --address 192.168.1.100:6379
 ```
+
+#### 3. Deploy Model
+
+On any machine connected to the cluster:
+
+```bash
+dillema serve \
+  --model-id qwen-0.5b \
+  --model-source Qwen/Qwen2.5-0.5B-Instruct \
+  --ray-address ray://192.168.1.100:10001 \
+  --tensor-parallel 2 \
+  --pipeline-parallel 2
+```
+
+#### 4. Stop Ray Cluster
+
+```bash
+dillema stop
+```
+
+### Command Options
+
+#### `dillema head`
+- `--port`: Ray port (default: 6379)
+- `--dashboard-host`: Dashboard host (default: 0.0.0.0)
+
+#### `dillema worker`
+- `--address`: Head node address in format `ip:port` (required)
+
+#### `dillema serve`
+- `--model-id`: Model identifier (required)
+- `--model-source`: HuggingFace model path (required)
+- `--min-replicas`: Minimum replicas (default: 1)
+- `--max-replicas`: Maximum replicas (default: 1)
+- `--tensor-parallel`: Tensor parallel size (default: 1)
+- `--pipeline-parallel`: Pipeline parallel size (default: 1)
+- `--hf-token`: HuggingFace token for gated models
+- `--ray-address`: Ray cluster address (default: auto)
+- `--network-interface`: Network interface for distributed communication (e.g., eth0, enp132s0)
+- `--app-host`: Application host address (default: 0.0.0.0)
+- `--app-port`: Application port number (default: 8000)
+
+### Python API Usage
+
+You can also use DiLLeMa programmatically:
+
+```python
+import ray
+from ray import serve
+from dillema.serve import LLMServe
+
+ray.init()
+
+wrapper = LLMServe(
+    model_id="qwen-0.5b",
+    model_source="Qwen/Qwen2.5-0.5B-Instruct",
+    tensor_parallel_size=2,
+    pipeline_parallel_size=1,
+)
+
+app = wrapper.build_app(
+    min_replicas=1,
+    max_replicas=2
+)
+
+serve.run(app, blocking=True)
+```
+
+## Architecture
+
+DiLLeMa leverages Ray as the distributed orchestration framework and VLLM as the inference engine:
+
+- **Ray**: Manages distributed resources, task scheduling, autoscaling, and fault tolerance
+- **VLLM**: Optimizes LLM inference through dynamic batching, kernel fusion, and advanced memory management
+- **Ray Serve**: Provides the serving layer with OpenAI-compatible API endpoints
+
+The system supports three deployment configurations:
+- **Single GPU**: Deploy models on a single GPU
+- **Multi-GPU**: Deploy models across multiple GPUs using tensor parallelism
+- **Multi-node Multi-GPU**: Deploy models across multiple nodes and GPUs using pipeline parallelism
+
+## Documentation
+
+For detailed documentation, see [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md)
+
+For CLI usage examples, see [CLI_USAGE.md](CLI_USAGE.md)
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details
+
+## Authors
+
+- Robby Ulung Pambudi (robby.pambudi10@gmail.com)
