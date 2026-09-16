@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Send } from 'lucide-react'
+import { Loader2, Send } from 'lucide-react'
 
 import { apiFetch } from '@/api'
 import { AppState } from '@/App'
@@ -72,22 +72,31 @@ export function ChatInput({ appState, updateState }: ChatInputProps) {
   }
 
   return (
-    <div className="border-t bg-background p-4">
-      <form onSubmit={handleSubmit} className="flex space-x-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={selectedCollection ? 'Ask something…' : 'Please select a collection first'}
-          disabled={!selectedCollection || isLoading}
-          className="flex-1"
-        />
-        <Button
-          type="submit"
-          disabled={!input.trim() || !selectedCollection || isLoading}
-          size="default"
-        >
-          <Send className="w-5 h-5" />
-        </Button>
+    <div className="shrink-0 border-t bg-surface px-4 py-4 sm:px-8 sm:py-5">
+      <form onSubmit={handleSubmit} className="mx-auto max-w-4xl">
+        <label htmlFor="chat-question" className="field-label mb-2">Your question</label>
+        <div className="flex gap-2 sm:gap-3">
+          <Input
+            id="chat-question"
+            aria-describedby="chat-input-hint"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={selectedCollection ? 'Ask something…' : 'Please select a collection first'}
+            disabled={!selectedCollection || isLoading}
+            className="h-12 min-w-0 flex-1"
+          />
+          <Button
+            type="submit"
+            disabled={!input.trim() || !selectedCollection || isLoading}
+            size="default"
+            className="h-12 px-4"
+            aria-label="Send question"
+          >
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <span className="hidden sm:inline">Send</span>
+          </Button>
+        </div>
+        <p id="chat-input-hint" className="mt-2 text-xs text-muted-foreground">{selectedCollection ? 'Press Enter to send. Check important details against your documents.' : 'Select a collection to enable the chat.'}</p>
       </form>
     </div>
   )

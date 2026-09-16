@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { HtmlRenderer } from './HtmlRenderer'
 import { Button } from './ui/Button'
 
-import { Copy, FileDown } from 'lucide-react'
+import { BookOpen, Copy, FileDown, MessageSquare } from 'lucide-react'
 
 interface ChatWindowProps {
   appState: AppState
@@ -31,7 +31,7 @@ export function ChatWindow({ appState }: ChatWindowProps) {
     if (!htmlString || typeof htmlString !== 'string') {
       return ''
     }
-    
+
     let cleanedText = htmlString
       .replace(/[\r\n]+/g, '')
       .replace(/```html/g, '')
@@ -69,7 +69,7 @@ ${messages.map(msg => `
 `).join('')}
 </body>
 </html>`
-    
+
     const blob = new Blob([chatHtml], { type: 'text/html' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -85,81 +85,89 @@ ${messages.map(msg => `
 
   if (!selectedCollection) {
     return (
-      <div className="flex-1 relative">
-        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center">
-          <div className="text-center p-8 bg-background rounded-lg border shadow-lg">
-            <h2 className="text-2xl font-semibold mb-2">Welcome!</h2>
-            <p className="text-muted-foreground">Please select a collection to begin</p>
-          </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-5 sm:p-8">
+        <div className="my-auto max-w-md text-center">
+          <span className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-primary/20 bg-surface text-primary shadow-sm"><MessageSquare className="h-7 w-7" /></span>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-primary">A conversation with your documents</p>
+          <h2 className="mb-3 text-2xl font-semibold tracking-tight sm:text-3xl">What would you like to explore?</h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">Select a collection, then ask a question. Your conversation starts with the knowledge in your documents.</p>
+          <div className="mt-6 inline-flex items-center gap-2 rounded-lg border bg-surface px-4 py-2.5 text-xs text-muted-foreground"><BookOpen className="h-4 w-4 text-primary" /> Choose a collection to begin</div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {messages.map((message, index) => (
-        <div
-          key={index}
-          className={cn(
-            "flex flex-col group",
-            message.role === 'user' ? 'items-end' : 'items-start'
-          )}
-        >
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8" role="log" aria-label="Conversation" aria-live="polite">
+      <div className="mx-auto max-w-4xl space-y-6">
+        {messages.map((message, index) => (
           <div
+            key={index}
             className={cn(
-              "inline-block rounded-lg px-4 py-2",
-              message.role === 'user'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground'
+              "flex flex-col group",
+              message.role === 'user' ? 'items-end' : 'items-start'
             )}
           >
-            {message.role === 'assistant' ? (
-              <HtmlRenderer content={message.content} />
-            ) : (
-              <div className="whitespace-pre-wrap">{message.content}</div>
+            <div
+              className={cn(
+                "min-w-0 max-w-[95%] break-words rounded-2xl border px-4 py-3 text-sm leading-relaxed shadow-sm sm:max-w-[85%] sm:px-5",
+                message.role === 'user'
+                  ? 'rounded-tr-sm border-primary bg-primary text-primary-foreground'
+                  : 'rounded-tl-sm border-border bg-surface text-foreground'
+              )}
+            >
+              <div className={cn('mb-2 text-xs font-semibold', message.role === 'user' ? 'text-primary-foreground/80' : 'text-primary')}>{message.role === 'user' ? 'You' : 'DiLLeMa'}</div>
+              {message.role === 'assistant' ? (
+                <HtmlRenderer content={message.content} />
+              ) : (
+                <div className="whitespace-pre-wrap">{message.content}</div>
+              )}
+            </div>
+
+            {message.role === 'assistant' && (
+              <div className="mt-2 flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(message.content)}
+                  aria-label="Copy answer"
+                  title="Copy answer"
+                  className="h-6 px-2 text-xs"
+                >
+                  <Copy size={16} strokeWidth={2} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={downloadChatHtml}
+                  aria-label="Export conversation"
+                  title="Export conversation"
+                  className="h-6 px-2 text-xs"
+                >
+                  <FileDown size={16} strokeWidth={2} />
+                </Button>
+              </div>
             )}
           </div>
-          
-          {message.role === 'assistant' && (
-            <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => copyToClipboard(message.content)}
-                className="h-6 px-2 text-xs"
-              >
-                <Copy size={16} strokeWidth={2} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={downloadChatHtml}
-                className="h-6 px-2 text-xs"
-              >
-                <FileDown size={16} strokeWidth={2} />
-              </Button>
-            </div>
-          )}
-        </div>
-      ))}
-      
-      {isLoading && (
-        <div className="flex justify-start">
-          <div className="bg-muted text-muted-foreground rounded-lg px-4 py-2">
-            <div className="flex items-center space-x-2">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+        ))}
+
+        {isLoading && (
+          <div className="flex justify-start">
+            <div role="status" className="rounded-2xl border bg-surface px-5 py-4 text-sm text-muted-foreground shadow-sm">
+              <div className="flex items-center space-x-2">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-current rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+                <span>Assistant is typing...</span>
               </div>
-              <span>Assistant is typing...</span>
             </div>
           </div>
-        </div>
-      )}
-      
-      <div ref={messagesEndRef} />
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
     </div>
   )
 }

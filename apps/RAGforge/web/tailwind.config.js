@@ -10,6 +10,7 @@ export default {
   theme: {
     extend: {
       colors: {
+        surface: "hsl(var(--surface))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

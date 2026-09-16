@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, FolderPlus } from 'lucide-react'
 
 import { apiFetch, readError } from '@/api'
 import { ErrorBanner } from '@/components/ErrorBanner'
@@ -43,26 +44,29 @@ export function CollectionNewPage() {
   }
 
   return (
-    <div className="max-w-lg">
-      <h1 className="text-xl font-semibold mb-4">New collection</h1>
+    <div className="max-w-2xl">
+      <Button variant="ghost" size="sm" onClick={() => navigate('/admin')} className="mb-5"><ArrowLeft className="h-4 w-4" /> Collections</Button>
+      <h1 className="text-2xl font-semibold tracking-tight">New collection</h1>
+      <p className="mb-6 mt-2 text-sm text-muted-foreground">Give your documents a shared space. You can add files after creating the collection.</p>
       <ErrorBanner message={error} />
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-1">
-          <label className="text-sm" htmlFor="name">Name</label>
-          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <form onSubmit={handleSubmit} className="surface-card space-y-6 p-5 sm:p-7">
+        <div className="space-y-2">
+          <label className="field-label" htmlFor="name">Collection name <span className="text-destructive">*</span></label>
+          <Input id="name" placeholder="e.g. Research papers" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
-        <div className="space-y-1">
-          <label className="text-sm" htmlFor="description">Description</label>
+        <div className="space-y-2">
+          <label className="field-label" htmlFor="description">Description <span className="font-normal text-muted-foreground">(optional)</span></label>
           <textarea
             id="description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="flex min-h-[96px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="field-control min-h-[128px] resize-y"
+            placeholder="What will people find in this collection?"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-3 border-t pt-5">
           <Button type="submit" disabled={loading || !name.trim()}>
-            {loading ? 'Creating…' : 'Create'}
+            <FolderPlus className="h-4 w-4" /> {loading ? 'Creating…' : 'Create collection'}
           </Button>
           <Button type="button" variant="outline" onClick={() => navigate('/admin')}>Cancel</Button>
         </div>

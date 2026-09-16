@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 from collections import Counter
+from datetime import datetime
 
 from loguru import logger
 
@@ -123,6 +124,7 @@ class CollectionsService(BaseService):
             updates["description"] = payload.description
         if not updates:
             return collection
+        updates["updated_at"] = datetime.now()
         return self.collections_repository.update_fields(collection_id, updates)
 
     def get_documents(self, collection_name: str) -> list:
@@ -133,7 +135,7 @@ class CollectionsService(BaseService):
 
     def delete_collection_by_id(self, collection_id: uuid.UUID) -> None:
         collection = self.collections_repository.read_by_id(collection_id)
-        files = self.files_repository.list_by_collection(collection_id)
+        files = self.files_repository.list_all_by_collection(collection_id)
         self.qdrant_client.delete_collection(collection_name=collection.vectordb_collection_name)
         for file_row in files:
             if file_row.file_path and os.path.exists(file_row.file_path):
@@ -141,7 +143,7 @@ class CollectionsService(BaseService):
                     os.remove(file_row.file_path)
                 except OSError as e:
                     logger.warning("Could not delete file {}: {}", file_row.file_path, e)
-        self.collections_repository.delete_by_id(collection.id)
+        self.collections_repository.delete_with_children(collection.id)
 
     def delete_collection(self, collection_name: str) -> None:
         collection = self.collections_repository.get_by_name(collection_name)

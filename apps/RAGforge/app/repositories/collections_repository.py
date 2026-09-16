@@ -5,8 +5,10 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import NotFoundError
 from app.models.collections import Collections
 from app.models.files import Files
+from app.models.questions import Questions
 from app.repositories.base_repository import BaseRepository
 from app.schema.collection_schema import FindCollection
 from app.services.base_service import RepositoryProtocol
@@ -33,6 +35,20 @@ class CollectionsRepository(BaseRepository, RepositoryProtocol):
             session.query(Collections).filter(Collections.id == collection_id).update(values)
             session.commit()
         return self.read_by_id(collection_id)
+
+    def delete_with_children(self, collection_id: UUID) -> None:
+        with self.session_factory() as session:
+            collection = session.query(Collections).filter(Collections.id == collection_id).first()
+            if not collection:
+                raise NotFoundError(detail=f"Collections with id {collection_id} not found")
+            session.query(Questions).filter(Questions.collection_id == collection_id).delete(
+                synchronize_session=False
+            )
+            session.query(Files).filter(Files.collection_id == collection_id).delete(
+                synchronize_session=False
+            )
+            session.delete(collection)
+            session.commit()
 
     def list_with_file_count(self, schema: FindCollection) -> dict:
         with self.session_factory() as session:

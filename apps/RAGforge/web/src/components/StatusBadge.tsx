@@ -12,7 +12,7 @@ export function StatusBadge({ status }: { status: string }) {
     failed: 'Failed',
   }
   return (
-    <span className={`inline-block px-2 py-0.5 text-xs ${styles[status] || 'bg-muted'}`}>
+    <span className={`inline-block whitespace-nowrap rounded-full border border-transparent px-2.5 py-1 text-xs font-medium ${styles[status] || 'bg-muted'}`}>
       {labels[status] || status}
     </span>
   )

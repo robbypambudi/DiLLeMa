@@ -4,12 +4,13 @@
 
 @layer base {
   :root {
-    --background: 0 0% 90%;
+    --background: 210 20% 96%;
+    --surface: 0 0% 100%;
     --foreground: 215 45% 25%;
     --muted: 210 40% 98%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 215 20% 81%;
+    --input: 215 16% 59%;
     --primary: 215 100% 27%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96%;
@@ -22,12 +23,14 @@
   }
 
   .dark {
+    color-scheme: dark;
     --background: 0 0% 15%;
+    --surface: 220 10% 19%;
     --foreground: 225 50% 85%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 217 16% 32%;
+    --input: 215 16% 49%;
     --primary: 215 75% 65%;
     --primary-foreground: 0 0% 15%;
     --secondary: 217.2 32.6% 17.5%;
@@ -38,13 +41,75 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
   }
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    min-width: 320px;
+    color: hsl(var(--foreground));
+    background: hsl(var(--background));
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    color: hsl(var(--primary-foreground));
+    background: hsl(var(--primary));
+  }
+
+  button, a, input, textarea, select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
 }
 
-* {
-  border-color: hsl(var(--border));
+@layer components {
+  .surface-card {
+    @apply rounded-2xl border border-border bg-surface shadow-sm;
+  }
+
+  .field-control {
+    @apply flex w-full rounded-lg border border-input bg-surface px-3.5 py-3 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/60 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground disabled:shadow-none;
+  }
+
+  .field-label {
+    @apply block text-sm font-medium;
+  }
+
+  .table-container {
+    @apply overflow-x-auto rounded-xl border border-border bg-surface;
+  }
+
+  .data-table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+
+  .data-table th {
+    @apply whitespace-nowrap border-b bg-secondary px-5 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+  }
+
+  .data-table td {
+    @apply border-b px-5 py-4;
+  }
+
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .data-table tbody tr {
+    @apply transition-colors hover:bg-primary/5;
+  }
 }
 
-body {
-  color: hsl(var(--foreground));
-  background: hsl(var(--background));
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

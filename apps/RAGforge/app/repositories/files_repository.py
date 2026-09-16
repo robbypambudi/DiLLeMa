@@ -39,6 +39,10 @@ class FilesRepository(BaseRepository, RepositoryProtocol):
                 .all()
             )
 
+    def list_all_by_collection(self, collection_id: UUID) -> List[Files]:
+        with self.session_factory() as session:
+            return session.query(Files).filter(Files.collection_id == collection_id).all()
+
     def get_collection_name(self, collection_id: UUID) -> str:
         with self.session_factory() as session:
             collection = session.query(Collections).filter(Collections.id == collection_id).first()
