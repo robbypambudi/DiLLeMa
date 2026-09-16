@@ -1,0 +1,34 @@
+# VCS / CI
+.git
+.github
+
+# Python caches / build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Separate app (its own repo/submodule) — not part of the serving image
+apps/RAGforge
+
+# Research artifacts and docs (not needed at runtime)
+analysis/
+evaluation/
+docs/
+
+# Secrets / local env
+.env
+*.pem
+*.key
+
+# Keep README.md (referenced by pyproject metadata); ignore other docs
+*.md
+!README.md

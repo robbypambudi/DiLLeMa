@@ -28,6 +28,19 @@ cd DiLLeMa
 pip install -e .
 ```
 
+### With Docker
+
+Build the GPU serving image (based on `rayproject/ray:2.50.0-py312-cu128`):
+
+```bash
+docker build -t dillema:2.50.0 .
+docker run --gpus all --rm -it dillema:2.50.0 bash -lc \
+  'ray start --head && dillema serve --model-id qwen-0.5b \
+     --model-source Qwen/Qwen2.5-0.5B-Instruct'
+```
+
+Requires the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html). See the header comment in the `Dockerfile` and `deploy/auth-proxy/` for securing the endpoint.
+
 ### Prerequisites
 
 - Python 3.12.9

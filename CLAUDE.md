@@ -47,6 +47,13 @@ The head/worker/stop commands are thin wrappers that **shell out to the `ray` CL
 
 The served `/v1` OpenAI endpoint has **no authentication** — Ray Serve LLM has no built-in API-key support and no official in-process middleware pattern ([ray#59578](https://github.com/ray-project/ray/issues/59578)). Do **not** expose `dillema serve` directly on a public interface. The supported pattern (see `deploy/auth-proxy/`) is to bind DiLLeMa to localhost (`--app-host 127.0.0.1 --app-port 8001`) and put a bearer-token reverse proxy (Caddy) in front on the public port. RAGforge authenticates with `LLM_API_KEY` / `LLM_BASE_URL`.
 
+## Docker
+
+`Dockerfile` builds the serving image on `rayproject/ray:2.50.0-py312-cu128` (Ray + Python 3.12 + CUDA 12.8) and pip-installs `vllm` + the package. Notes:
+- vLLM is installed on top of the base ray image because `ray-llm:2.50.0` has no py312 build. The base ships Python 3.12.x, so the install uses `--ignore-requires-python` to tolerate the `==3.12.9` pin in `pyproject.toml`.
+- Running needs the NVIDIA Container Toolkit and `--gpus all`; the build itself is GPU-free.
+- `dillema serve` calls `ray.init(address="auto")`, so start a cluster first in the container (`ray start --head && dillema serve ...`) — see the header comment in `Dockerfile`.
+
 ## Architecture
 
 The package is intentionally small — a CLI dispatcher over a single serving wrapper — plus standalone research code:
