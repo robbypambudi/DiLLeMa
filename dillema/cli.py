@@ -17,24 +17,31 @@ def get_local_ip():
 
 def cmd_head(args):
     ip = get_local_ip()
-    cmd = f"ray start --head --port={args.port} --dashboard-host={args.dashboard_host}"
+    cmd = ["ray", "start", "--head", f"--port={args.port}",
+           f"--dashboard-host={args.dashboard_host}"]
     print(f"Starting Ray head node at {ip}:{args.port}")
-    subprocess.run(cmd, shell=True)
+    if subprocess.run(cmd).returncode != 0:
+        print("✗ Failed to start Ray head node.")
+        return
     print(f"\n✓ Head node started!")
     print(f"✓ Connect workers with: dillema worker --address='{ip}:{args.port}'")
     print(f"✓ Dashboard: http://{ip}:8265")
 
 
 def cmd_worker(args):
-    cmd = f"ray start --address='{args.address}'"
+    cmd = ["ray", "start", f"--address={args.address}"]
     print(f"Connecting to head node at {args.address}")
-    subprocess.run(cmd, shell=True)
+    if subprocess.run(cmd).returncode != 0:
+        print("✗ Failed to connect worker to head node.")
+        return
     print(f"\n✓ Worker connected!")
 
 
 def cmd_stop(args):
     print("Stopping Ray...")
-    subprocess.run("ray stop", shell=True)
+    if subprocess.run(["ray", "stop"]).returncode != 0:
+        print("✗ Failed to stop Ray.")
+        return
     print("✓ Ray stopped!")
 
 
@@ -64,16 +71,15 @@ def cmd_serve(args):
         runtime_env=runtime_env
     )
 
-    
     host = args.app_host or "0.0.0.0"
     port = args.app_port or 8000
-
-    serve.start(http_options=serve.config.HTTPOptions(host=host, port=port))
-    serve.run(app, blocking=True)
 
     print(f"✓ Deploying {args.model_source}...")
     print(f"✓ Dashboard: http://{host}:8265")
     print(f"✓ API: http://{host}:{port}")
+
+    serve.start(http_options=serve.config.HTTPOptions(host=host, port=port))
+    serve.run(app, blocking=True)
 
 
 def main():

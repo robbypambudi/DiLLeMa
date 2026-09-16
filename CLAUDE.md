@@ -1,0 +1,112 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+DiLLeMa is a distributed LLM serving system built on **Ray** (orchestration) and **vLLM** (inference). It exposes a `dillema` CLI that manages a Ray cluster and deploys models behind an OpenAI-compatible API via Ray Serve. Published to PyPI as `DiLLeMa`.
+
+## Environment constraint
+
+Runtime dependencies (`ray[default,serve]==2.50.0`, `vllm>=0.11.0`) require Linux + a CUDA GPU and **do not install on macOS**. This means `pip install -e .`, `pytest`, and anything importing `dillema.serve`/`dillema.cli` will fail on a Mac dev machine. Do package-level edits and reasoning locally; run/test the serving stack on a Linux GPU host (see `install_ray_miniconda_python.sh` for the conda-based setup).
+
+## Commands
+
+```bash
+# Install (editable) + dev tooling
+pip install -e .                 # runtime deps from pyproject.toml
+pip install -r requirements.txt  # dev deps: pytest, black, build, twine
+
+# Tests (CI runs `pytest test`)
+pytest test
+pytest test/test_example.py::test_example   # single test
+
+# Format (CI runs black over the whole tree)
+python -m black .
+
+# Build wheel/sdist
+python -m build        # or: ./build.sh  (uninstalls, builds, reinstalls locally)
+```
+
+`uv.lock` is present, so `uv` is also usable for dependency management.
+
+**Known-broken test:** `test/test_example.py` imports `from dillema import example`, but no `dillema/example.py` exists — the test suite fails to collect. Add the module or fix the import before relying on `pytest`.
+
+## CLI (the primary interface)
+
+Entry point is `dillema.cli:main` (registered as the `dillema` console script). Subcommands:
+
+- `dillema head` — runs `ray start --head` via subprocess, prints the worker join address.
+- `dillema worker --address ip:port` — runs `ray start --address=...`.
+- `dillema stop` — runs `ray stop`.
+- `dillema serve --model-id ... --model-source ...` — `ray.init(address=...)`, builds an `LLMServe` app, and `serve.run(..., blocking=True)`.
+
+The head/worker/stop commands are thin wrappers that **shell out to the `ray` CLI**; the real serving logic lives in `serve`.
+
+## Architecture
+
+Three cooperating layers, plus standalone research code:
+
+- **`dillema/cli.py`** — argparse dispatcher. For `serve`, translates `--network-interface` into a Ray `runtime_env` that sets `GLOO_SOCKET_IFNAME` / `NCCL_SOCKET_IFNAME` (required for multi-node collective comms to bind the right NIC), then delegates to `LLMServe`.
+
+- **`dillema/serve/llm.py`** — `LLMServe` wraps Ray Serve's `LLMConfig` + `build_openai_app`. `build_app()` assembles engine kwargs (`tensor_parallel_size`, `pipeline_parallel_size`, `trust_remote_code`), an autoscaling config (`min_replicas`/`max_replicas`), and a runtime env that always sets `VLLM_USE_V1=1` and injects `HF_TOKEN` (arg or `HF_TOKEN` env). This is the public Python API: `from dillema.serve import LLMServe`.
+
+- **`dillema/ray/main.py`** — `RayContainer` manages Ray init/connect/shutdown lifecycle. Used by the web app, not by the CLI serve path.
+
+- **`dillema/app/`** — a **separate** FastAPI + Tailwind web UI (currently a prototype with hardcoded node data). It is independent from the CLI. Two gotchas: it constructs `RayContainer()` at module import (so a reachable Ray cluster is needed to import it), and `StaticFiles`/`Jinja2Templates` use relative paths (`static`, `templates`), so it must be run from inside `dillema/app/`.
+
+**Parallelism model:** tensor parallelism (`--tensor-parallel`) splits a model across GPUs on a node; pipeline parallelism (`--pipeline-parallel`) splits across nodes. Both feed straight into vLLM engine kwargs.
+
+### Web UI (Tailwind)
+
+CSS is compiled, not CDN. From `dillema/app/`:
+```bash
+npm install
+npm run build   # npx tailwindcss -i ./input.css -o ./static/css/styles.css
+```
+
+## Non-package directories
+
+These are research/benchmarking artifacts, **not** part of the shipped package (excluded from the build):
+
+- `evaluation/` — standalone multi-node deployment + benchmark scripts (`ray_model_deployer.py`, `ray_model_evaluator.py`, VPN/dual-node setup shells). See `evaluation/README.txt`. Note: an `.pem` private key is checked in here — do not add more secrets.
+- `analysis/` — Ray/vLLM experiment notebook and scratch scripts.
+- `apps/RAGforge/` — git submodule (separate repo, see its own section below); empty unless initialized with `git submodule update --init apps/RAGforge`.
+
+## apps/RAGforge (submodule)
+
+A **self-contained RAG application** (`https://github.com/robbypambudi/RAGforge.git`, package name `rag-template`), separate from the DiLLeMa package with its own `pyproject.toml`, `uv.lock`, and `.env`. It is the *consumer* side: a Retrieval-Augmented Generation app that talks to an OpenAI-compatible LLM endpoint (via `langchain-openai` `ChatOpenAI`) — the same kind of endpoint `dillema serve` exposes. `.env.example` defaults `TEXT_GENERATION_MODEL=Qwen/Qwen2.5-0.5B-Instruct`, mirroring DiLLeMa's examples.
+
+Initialize with `git submodule update --init apps/RAGforge` before working on it.
+
+### Stack & services
+
+- **Backend:** FastAPI (Python), managed with `uv`. Postgres (metadata/structured) + **Qdrant** (vectors). SQLAlchemy/SQLModel with Alembic migrations. Embeddings default to `intfloat/multilingual-e5-small`.
+- **Frontend:** React + TypeScript + Vite + Tailwind in `web/` (port 3000).
+- **Infra:** `docker-compose.yml` brings up Postgres (5432) and Qdrant (6333/6334).
+
+### Running it (from `apps/RAGforge/`)
+
+```bash
+cp .env.example .env
+uv sync
+docker-compose up -d      # Postgres + Qdrant
+alembic upgrade head      # DB migrations
+uvicorn app.main:app      # API on :8000, docs at /docs
+cd web && npm install && npm run dev   # frontend on :3000
+```
+
+### Backend architecture
+
+Classic layered design wired by **`dependency-injector`**:
+
+- **`app/`** — `main.py` builds a singleton `App` that constructs `app/core/container.py::Container` (the DI graph: DB, Qdrant client, embedding model, repositories, services, pipeline). Request flow is `api/v1/endpoints/*` → `controllers/` → `services/` → `repositories/` (over `models/`). Config is Pydantic-settings in `app/core/config.py` (reads `../../.env`; `SQLALCHEMY_DATABASE_URI` is computed from `POSTGRES_*`).
+- **`app/pipeline/pipeline_service.py`** — document ingestion: reads PDF/DOCX (DOCX via `pypandoc`, auto-downloads pandoc)/text, then cleans → chunks → embeds → stores in Qdrant.
+- **`rag/`** — the reusable RAG core, independent of the web layer: `embedding/` (factory pattern), `llm/` (`chat_model.py` OpenAI chat, `re_rank.py`), `nlp/` (`doc_chunking.py`, `doc_cleaner.py`, `query.py`), and `qdrant/` + `chroma/` vector-store clients.
+- **`agents/augment_query_generated.py`** — query augmentation/expansion using OpenAI (`OPENAI_API_KEY`).
+
+Note: RAGforge uses **Ruff** (see its `pyproject.toml`), unlike the DiLLeMa package which uses Black.
+
+## CI/CD
+
+`.github/workflows/build.yml`: on push/PR to `main` → install deps, `pytest test`, `black .`, `python -m build`. On push to `main`, a `deploy` job publishes to PyPI via twine (`PYPI_API_TOKEN` secret). Version is read dynamically from `dillema.__version__` in `dillema/__init__.py` — bump it there when releasing.
