@@ -15,16 +15,23 @@
 # (Front the endpoint with deploy/auth-proxy/ for authentication.)
 FROM rayproject/ray:2.50.0-py312-cu128
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 WORKDIR /home/ray/dillema
 
-# vLLM is not in the base ray image (only ray-llm bundles it, and that variant
-# has no py312 build for 2.50.0). Install it explicitly, matching pyproject.
-RUN pip install --no-cache-dir "vllm>=0.11.0"
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
 
-# Install DiLLeMa. pyproject pins requires-python == 3.12.9; the base image ships
-# 3.12.x, so skip the strict interpreter check (patch differences are harmless).
+# Install dependencies first so the layer caches independently of source changes.
+# uv installs CPython 3.12.9 to match requires-python; CUDA libs come from the base image.
+COPY --chown=ray:users pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev --no-install-project
+
+# Install DiLLeMa (vLLM comes from the lockfile / project dependencies).
 COPY --chown=ray:users . .
-RUN pip install --no-cache-dir --ignore-requires-python -e .
+RUN uv sync --frozen --no-dev
+
+ENV PATH="/home/ray/dillema/.venv/bin:$PATH"
 
 # OpenAI-compatible API (bind to localhost in prod, front with an auth proxy).
 EXPOSE 8000

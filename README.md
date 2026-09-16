@@ -14,10 +14,12 @@ DiLLeMa is a distributed Large Language Model (LLM) serving system that provides
 
 ## Installation
 
+Requires [uv](https://docs.astral.sh/uv/).
+
 ### From PyPI
 
 ```bash
-pip install dillema
+uv pip install dillema
 ```
 
 ### From Source
@@ -25,7 +27,15 @@ pip install dillema
 ```bash
 git clone https://github.com/robbypambudi/DiLLeMa.git
 cd DiLLeMa
-pip install -e .
+uv sync
+```
+
+Or run `./install.sh` to install uv (if missing), pin Python 3.12.9, and sync the environment.
+
+After that, run commands with `uv run` (for example `uv run dillema --help`) or activate `.venv`:
+
+```bash
+source .venv/bin/activate
 ```
 
 ### With Docker
@@ -48,11 +58,7 @@ Requires the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud
 - Ray 2.50.0
 - VLLM >= 0.11.0
 
-> **Note**: For safety, it's recommended to use a conda environment:
-> ```bash
-> conda create -n dillema python=3.12.9
-> conda activate dillema
-> ```
+> **Note**: `uv sync` creates `.venv` with Python 3.12.9 (see `.python-version`). You do not need conda.
 
 ## Project Structure
 
@@ -70,7 +76,7 @@ DiLLeMa/
 ├── docs/                      # Documentation and assets
 ├── test/                      # Unit tests
 ├── pyproject.toml             # Project configuration
-└── requirements.txt           # Python dependencies
+└── uv.lock                    # Locked dependency versions
 ```
 
 ## Flow Diagram
@@ -106,6 +112,8 @@ DiLLeMa/
 ```
 
 ## Usage
+
+If `.venv` is not activated, prefix commands with `uv run` (for example `uv run dillema serve ...`).
 
 ### Single Device Deployment
 

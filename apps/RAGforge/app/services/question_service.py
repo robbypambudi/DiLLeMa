@@ -18,7 +18,7 @@ class QuestionsService(BaseService):
     Question service class for handling question-related operations.
     """
     re_ranking = ReRanking()
-    openai_chat = OpenAIChat(key=str('any'), model_name=str('qwen-14b'))
+    openai_chat = OpenAIChat(key=str('any'), model_name=str('qwen-0.5b'))
     embedding_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
 
     def __init__(self, questions_repository: QuestionsRepository, collections_repository: CollectionsRepository,

@@ -44,7 +44,7 @@ class OpenAIChat:
     Class untuk mengelola interaksi chat dengan OpenAI API.
     """
 
-    def __init__(self, key: str, model_name: str = "qwen-14b") -> None:
+    def __init__(self, key: str, model_name: str = "qwen-0.5b") -> None:
         """
         Inisialisasi OpenAIChat.
 

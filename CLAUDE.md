@@ -8,27 +8,24 @@ DiLLeMa is a distributed LLM serving system built on **Ray** (orchestration) and
 
 ## Environment constraint
 
-Runtime dependencies (`ray[default,serve]==2.50.0`, `vllm>=0.11.0`) require Linux + a CUDA GPU and **do not install on macOS**. This means `pip install -e .`, `pytest`, and anything importing `dillema.serve`/`dillema.cli` will fail on a Mac dev machine. Do package-level edits and reasoning locally; run/test the serving stack on a Linux GPU host (see `install_ray_miniconda_python.sh` for the conda-based setup).
+Runtime dependencies (`ray[default,serve]==2.50.0`, `vllm>=0.11.0`) require Linux + a CUDA GPU and **do not install on macOS**. This means `uv sync`, `uv run pytest`, and anything importing `dillema.serve`/`dillema.cli` will fail on a Mac dev machine. Do package-level edits and reasoning locally; run/test the serving stack on a Linux GPU host (see `install.sh`).
 
 ## Commands
 
 ```bash
 # Install (editable) + dev tooling
-pip install -e .                 # runtime deps from pyproject.toml
-pip install -r requirements.txt  # dev deps: pytest, black, build, twine
+uv sync                      # runtime + dev deps from pyproject.toml / uv.lock
 
-# Tests (CI runs `pytest test`)
-pytest test
-pytest test/test_example.py::test_example   # single test
+# Tests (CI runs `uv run pytest test`)
+uv run pytest test
+uv run pytest test/test_example.py::test_example   # single test
 
 # Format (CI runs black over the whole tree)
-python -m black .
+uv run black .
 
 # Build wheel/sdist
-python -m build        # or: ./build.sh  (uninstalls, builds, reinstalls locally)
+uv build                     # or: ./build.sh  (uninstalls, builds, reinstalls locally)
 ```
-
-`uv.lock` is present, so `uv` is also usable for dependency management.
 
 **Known-broken test:** `test/test_example.py` imports `from dillema import example`, but no `dillema/example.py` exists — the test suite fails to collect. Add the module or fix the import before relying on `pytest`.
 
@@ -49,8 +46,8 @@ The served `/v1` OpenAI endpoint has **no authentication** — Ray Serve LLM has
 
 ## Docker
 
-`Dockerfile` builds the serving image on `rayproject/ray:2.50.0-py312-cu128` (Ray + Python 3.12 + CUDA 12.8) and pip-installs `vllm` + the package. Notes:
-- vLLM is installed on top of the base ray image because `ray-llm:2.50.0` has no py312 build. The base ships Python 3.12.x, so the install uses `--ignore-requires-python` to tolerate the `==3.12.9` pin in `pyproject.toml`.
+`Dockerfile` builds the serving image on `rayproject/ray:2.50.0-py312-cu128` (Ray + Python 3.12 + CUDA 12.8) and uses `uv sync` to install `vllm` + the package. Notes:
+- vLLM is installed from `uv.lock` (the `ray-llm:2.50.0` image has no py312 build). uv installs CPython 3.12.9 to match `requires-python` in `pyproject.toml`.
 - Running needs the NVIDIA Container Toolkit and `--gpus all`; the build itself is GPU-free.
 - `dillema serve` calls `ray.init(address="auto")`, so start a cluster first in the container (`ray start --head && dillema serve ...`) — see the header comment in `Dockerfile`.
 
@@ -91,10 +88,10 @@ It was previously a git submodule; it is now a plain directory, so edits are tra
 ```bash
 cp .env.example .env
 uv sync
-docker-compose up -d      # Postgres + Qdrant
-alembic upgrade head      # DB migrations
-uvicorn app.main:app      # API on :8000, docs at /docs
-cd web && npm install && npm run dev   # frontend on :3000
+docker compose up -d                   # Postgres + Qdrant
+uv run alembic upgrade head             # DB migrations
+uv run uvicorn app.main:app             # API on :8000, docs at /docs
+cd web && npm install && npm run dev    # frontend on :3000
 ```
 
 ### Backend architecture
@@ -110,4 +107,4 @@ Note: RAGforge uses **Ruff** (see its `pyproject.toml`), unlike the DiLLeMa pack
 
 ## CI/CD
 
-`.github/workflows/build.yml`: on push/PR to `main` → install deps, `pytest test`, `black .`, `python -m build`. On push to `main`, a `deploy` job publishes to PyPI via twine (`PYPI_API_TOKEN` secret). Version is read dynamically from `dillema.__version__` in `dillema/__init__.py` — bump it there when releasing.
+`.github/workflows/build.yml`: on push/PR to `main` → `uv sync --only-group dev`, `uv run pytest test`, `uv run black .`, `uv build`. On push to `main`, a `deploy` job publishes to PyPI via `uv publish` (`PYPI_API_TOKEN` secret). Version is read dynamically from `dillema.__version__` in `dillema/__init__.py` — bump it there when releasing.

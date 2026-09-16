@@ -2,9 +2,13 @@
 
 ## Installation
 
+Requires [uv](https://docs.astral.sh/uv/). From the repository root:
+
 ```bash
-pip install -e .
+uv sync
 ```
+
+Then run CLI commands with `uv run` (for example `uv run dillema serve ...`) or `source .venv/bin/activate`.
 
 ## Single Device
 

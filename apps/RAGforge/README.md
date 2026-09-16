@@ -45,16 +45,16 @@ cp .env.example .env
 uv sync
 
 # Start Services
-docker-compose up -d
+docker compose up -d
 
 # Run Migrations
-alembic upgrade head
+uv run alembic upgrade head
 
 # Run The Application
-uvicorn app.main:app
+uv run uvicorn app.main:app
 
 # Run The Frontend
-cd /web && npm install && npm run dev
+cd web && npm install && npm run dev
 ```
 
 ## Access the Application

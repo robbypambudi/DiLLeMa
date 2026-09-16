@@ -1,6 +1,7 @@
 [project]
 name = "rag-template"
 version = "0.1.0"
+requires-python = ">=3.12"
 description = "A template for RAG (Retrieval-Augmented Generation) projects."
 authors = [
     { name = "Robby Pambudi", email = "robby.pambudi10@gmail.com" }
@@ -73,11 +74,11 @@ dependencies = [
     "packaging==24.2",
     "pillow==11.1.0",
     "propcache==0.3.0",
-    "psycopg2==2.9.10",
     "psycopg2-binary==2.9.10",
     "pydantic==2.10.6",
     "pydantic-core==2.27.2",
     "pydantic-settings==2.8.1",
+    "pypandoc>=1.15",
     "pypdf>=6.1.0",
     "python-dotenv==1.0.1",
     "pyyaml==6.0.2",

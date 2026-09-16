@@ -32,5 +32,17 @@ version = {attr = "dillema.__version__"}
 [project.scripts]
 dillema = "dillema.cli:main"
 
+[dependency-groups]
+dev = [
+    "pytest==8.3.5",
+    "build==1.2.2",
+    "twine==6.1.0",
+    "black==25.1.0",
+]
+
+[tool.uv]
+package = true
+default-groups = ["dev"]
+
 [tool.setuptools.packages.find]
 exclude = ["tests*", "docs", "build", "temp*"]

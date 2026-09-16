@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:latest
+    image: postgres:16
     container_name: my_postgres_container
     environment:
       POSTGRES_USER: myuser
@@ -14,6 +14,12 @@ services:
       - /tmp
     networks:
       - my_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydb"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -25,9 +31,9 @@ services:
     networks:
       - my_network
     depends_on:
-      - db
-    restart: always
-    
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   postgres_data:

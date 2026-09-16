@@ -32,7 +32,7 @@ class AugmentQueryGenerated:
     def __init__(self, api_key):
         self.openai = OpenAIClient(api_key=api_key)
 
-    def augment(self, query, model="qwen-14b") -> list[str]:
+    def augment(self, query, model="qwen-0.5b") -> list[str]:
         """
         Augment the given query using OpenAI's API.
         """
