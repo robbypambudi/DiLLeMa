@@ -52,6 +52,20 @@ dillema serve \
 dillema stop
 ```
 
+## DiLLeMa dashboard (API + web)
+
+From the repository (needs Node.js, `uv`, and Docker for Postgres/Qdrant):
+
+```bash
+dillema start dashboard
+# same as: dillema dashboard
+```
+
+- API: http://localhost:8080
+- Web: http://localhost:3000
+
+This does not start the LLM. Run `dillema head` and `dillema serve` separately if chat should call DiLLeMa.
+
 ## Options
 
 - `--model-id`: Model identifier (required)

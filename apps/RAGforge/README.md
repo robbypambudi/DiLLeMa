@@ -1,6 +1,6 @@
-# 🔨 RAGforge
+# DiLLeMa
 
-**RAGforge** is a production-ready template for building Retrieval-Augmented Generation (RAG) applications using:
+**DiLLeMa** is a production-ready template for building Retrieval-Augmented Generation (RAG) applications using:
 
 - 🐍 **Python**
 - 🔗 **LangChain**

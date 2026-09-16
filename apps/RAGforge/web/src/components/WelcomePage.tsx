@@ -51,12 +51,12 @@ export function WelcomePage({ onCreateChat, appState, updateState }: WelcomePage
             <div className="mx-auto">
               <img 
                 src="/assets/logo-text-light.png" 
-                alt="RAGforge Logo" 
+                alt="DiLLeMa"
                 className="w-2xl h-2xl mx-auto dark:hidden"
               />
               <img 
                 src="/assets/logo-text-dark.png" 
-                alt="RAGforge Logo" 
+                alt="DiLLeMa"
                 className="w-2xl h-2xl mx-auto hidden dark:block"
               />
             </div>

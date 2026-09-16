@@ -13,7 +13,7 @@ export function AdminLayout() {
         <div className="flex items-center gap-2 font-semibold">
           <img src="/assets/logo-light.png" alt="" className="h-7 dark:hidden" />
           <img src="/assets/logo-dark.png" alt="" className="h-7 hidden dark:block" />
-          RAGforge
+          DiLLeMa
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className="text-muted-foreground">{user?.email}</span>

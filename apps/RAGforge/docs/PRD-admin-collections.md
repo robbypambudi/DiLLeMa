@@ -1,8 +1,8 @@
-# PRD: Admin Collections & Documents (RAGforge)
+# PRD: Admin Collections & Documents (DiLLeMa)
 
 | Field | Value |
 | --- | --- |
-| Product | RAGforge (vendored in DiLLeMa at `apps/RAGforge`) |
+| Product | DiLLeMa dashboard (vendored at `apps/RAGforge`) |
 | Version | 1.0 |
 | Status | Draft for implementation |
 | Audience | Backend, frontend, and anyone operating the local RAG stack |
@@ -13,7 +13,7 @@
 
 ## 1. Summary
 
-RAGforge already stores collections and files, indexes them into Qdrant, and answers questions through DiLLeMa. The **chat UI works**. The **admin UI does not**: create/upload/delete screens were built, then disconnected from the chat sidebar.
+The dashboard already stores collections and files, indexes them into Qdrant, and answers questions through DiLLeMa LLM. The **chat UI works**. The **admin UI does not**: create/upload/delete screens were built, then disconnected from the chat sidebar.
 
 v1 adds:
 
@@ -31,7 +31,7 @@ Chat stays a **select-and-ask** surface. Knowledge is filled only in Admin.
 
 ```
 Browser (Vite, port 3000)
-  → RAGforge FastAPI (/api/v1)     ← this PRD’s API
+  → Dashboard FastAPI (/api/v1)     ← this PRD’s API
        → Postgres (collections, files, questions)
        → Qdrant (vectors)
        → DiLLeMa OpenAI-compatible LLM (LLM_BASE_URL, typically :8000/v1)
@@ -39,9 +39,9 @@ Browser (Vite, port 3000)
 
 Do not confuse ports:
 
-- **RAGforge API** is the backend this frontend calls (`VITE_BACKEND_URL` / `BACKEND_URL`). In the current local setup that is often `http://localhost:8080` because DiLLeMa already occupies `:8000`.
+- **Dashboard API** is the backend this frontend calls (`VITE_BACKEND_URL` / `BACKEND_URL`). In the current local setup that is often `http://localhost:8080` because DiLLeMa already occupies `:8000`.
 - **DiLLeMa** is the LLM at `LLM_BASE_URL` (e.g. `http://127.0.0.1:8000/v1`). Admin never talks to DiLLeMa directly.
-- **Vite proxy** in `web/vite.config.ts` maps `/api` → RAGforge. Components today call an absolute `BACKEND_URL`, so the proxy is unused unless that env is relative.
+- **Vite proxy** in `web/vite.config.ts` maps `/api` → the dashboard API. Components today call an absolute `BACKEND_URL`, so the proxy is unused unless that env is relative.
 
 ### 2.2 Live chat path
 
@@ -292,11 +292,11 @@ Rules:
 - Errors: a bordered banner above the table/form, not `console.error` only.
 - Confirmations: existing overlay pattern `fixed inset-0 bg-black/50`, short copy, no icons-as-decoration.
 
-Admin product name in chrome: **RAGforge** (match the logo files). Do not put “DiLLeMa Chat” in the Admin header. DiLLeMa is the LLM process, not this app’s admin brand.
+Admin product name in chrome: **DiLLeMa** (match the logo files).
 
 ### 9.2 Shared Admin shell
 
-- **Header (56px):** wordmark RAGforge (text + existing logo if it loads), spacer, email, **Logout**
+- **Header (56px):** wordmark DiLLeMa (text + existing logo if it loads), spacer, email, **Logout**
 - **Left nav (~220px):** single item **Collections** (active state: navy text or left border). No Settings in v1.
 - **Main:** page title on the left, primary action on the right, optional filter, table, pagination if `total_count > page_size`
 
@@ -551,7 +551,7 @@ v1 work that is **not** required (disclose only):
 4. After delete collection, it disappears from chat list and Qdrant has no collection of that storage id.
 5. Retry on Failed moves through Indexing to Ready or Failed again, with the banner if it fails.
 6. Requests without a token to protected routes return 401.
-7. Admin UI uses RAGforge API base URL, never DiLLeMa `/v1`, for collection/file calls.
+7. Admin UI uses the dashboard API base URL, never DiLLeMa `/v1`, for collection/file calls.
 
 ---
 
@@ -560,7 +560,7 @@ v1 work that is **not** required (disclose only):
 - Dead `app/controllers/*` (`src.*` imports) stay out of this work.
 - `zustand` and unused Streamlit `web/main.py` are out of scope.
 - Chat still buffers SSE; do not treat that as an Admin defect.
-- Local ports: document in README that frontend `VITE_BACKEND_URL` must point at **RAGforge**, while `.env` `LLM_BASE_URL` points at **DiLLeMa**.
+- Local ports: document in README that frontend `VITE_BACKEND_URL` must point at the **dashboard API**, while `.env` `LLM_BASE_URL` points at **DiLLeMa**.
 
 ---
 
@@ -583,4 +583,4 @@ v1 work that is **not** required (disclose only):
 | Storage id | `vectordb_collection_name`, Qdrant collection name, server-generated |
 | Document / file | Uploaded PDF/DOCX/MD/TXT indexed into that collection |
 | DiLLeMa | Separate serving process; OpenAI-compatible `/v1` |
-| RAGforge API | FastAPI app this Admin talks to |
+| Dashboard API | FastAPI app this Admin talks to |

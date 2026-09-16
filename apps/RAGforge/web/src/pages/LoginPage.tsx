@@ -39,7 +39,7 @@ export function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <form onSubmit={handleSubmit} className="w-full max-w-sm border bg-background p-6 space-y-4">
         <div>
-          <h1 className="text-xl font-semibold">RAGforge</h1>
+          <h1 className="text-xl font-semibold">DiLLeMa</h1>
           <p className="text-sm text-muted-foreground mt-1">Sign in to manage collections</p>
         </div>
         {error && (

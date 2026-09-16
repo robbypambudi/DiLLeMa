@@ -32,7 +32,7 @@ curl http://<host>:8000/v1/chat/completions \
   -d '{"model":"qwen-0.5b","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-For RAGforge, set `LLM_BASE_URL=http://<host>:8000/v1` and `LLM_API_KEY` to the
+For the DiLLeMa dashboard, set `LLM_BASE_URL=http://<host>:8000/v1` and `LLM_API_KEY` to the
 same token.
 
 ## Notes

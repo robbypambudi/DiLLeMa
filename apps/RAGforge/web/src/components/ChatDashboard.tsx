@@ -33,15 +33,15 @@ export function ChatDashboard({ onBack, appState, updateState }: ChatDashboardPr
           <div className="flex items-center space-x-3">
             <img
               src="/assets/logo-light.png"
-              alt="RAGforge"
+              alt="DiLLeMa"
               className="h-8 dark:hidden"
             />
             <img
               src="/assets/logo-dark.png"
-              alt="RAGforge"
+              alt="DiLLeMa"
               className="h-8 hidden dark:block"
             />
-            <h1 className="text-2xl font-semibold">RAGforge</h1>
+            <h1 className="text-2xl font-semibold">DiLLeMa</h1>
           </div>
         </div>
         <div className="flex items-center gap-2">
