@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:latest
+    container_name: my_postgres_container
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp
+    networks:
+      - my_network
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    ports:
+      - 6333:6333
+      - 6334:6334
+    networks:
+      - my_network
+    depends_on:
+      - db
+    restart: always
+    
+
+volumes:
+  postgres_data:
+
+networks:
+  my_network:
+    driver: bridge

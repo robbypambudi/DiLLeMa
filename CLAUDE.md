@@ -72,13 +72,13 @@ These are research/benchmarking artifacts, **not** part of the shipped package (
 
 - `evaluation/` — standalone multi-node deployment + benchmark scripts (`ray_model_deployer.py`, `ray_model_evaluator.py`, VPN/dual-node setup shells). See `evaluation/README.txt`. Note: an `.pem` private key is checked in here — do not add more secrets.
 - `analysis/` — Ray/vLLM experiment notebook and scratch scripts.
-- `apps/RAGforge/` — git submodule (separate repo, see its own section below); empty unless initialized with `git submodule update --init apps/RAGforge`.
+- `apps/RAGforge/` — a vendored RAG application (see its own section below); it lives directly in this repo, not as a submodule.
 
-## apps/RAGforge (submodule)
+## apps/RAGforge (vendored app)
 
-A **self-contained RAG application** (`https://github.com/robbypambudi/RAGforge.git`, package name `rag-template`), separate from the DiLLeMa package with its own `pyproject.toml`, `uv.lock`, and `.env`. It is the *consumer* side: a Retrieval-Augmented Generation app that talks to an OpenAI-compatible LLM endpoint (via `langchain-openai` `ChatOpenAI`) — the same kind of endpoint `dillema serve` exposes. `.env.example` defaults `TEXT_GENERATION_MODEL=Qwen/Qwen2.5-0.5B-Instruct`, mirroring DiLLeMa's examples.
+A **self-contained RAG application** (`rag-template`, originally from `https://github.com/robbypambudi/RAGforge.git`), vendored into this repo with its own `pyproject.toml`, `uv.lock`, and `.env`. It is the *consumer* side: a Retrieval-Augmented Generation app that talks to an OpenAI-compatible LLM endpoint (via `langchain-openai` `ChatOpenAI`) — the same kind of endpoint `dillema serve` exposes.
 
-Initialize with `git submodule update --init apps/RAGforge` before working on it.
+It was previously a git submodule; it is now a plain directory, so edits are tracked directly by this repo and no longer sync with the upstream RAGforge repo. It has its own toolchain (`uv`, Ruff) and is excluded from both the DiLLeMa Python package build and the `Dockerfile` image.
 
 ### Stack & services
 
