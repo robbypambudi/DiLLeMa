@@ -1,5 +1,7 @@
 from sentence_transformers import CrossEncoder
 
+from rag.embedding.device import embedding_device
+
 
 class ReRanking:
     """
@@ -13,7 +15,7 @@ class ReRanking:
         Args:
             model_name (str): The name of the pre-trained model to use for re-ranking.
         """
-        self.model = CrossEncoder(model_name)
+        self.model = CrossEncoder(model_name, device=embedding_device())
 
     def rank(self, top_results: int = 3, pairs: list = None) -> list:
         """

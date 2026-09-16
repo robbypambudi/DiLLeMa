@@ -2,6 +2,7 @@ from sentence_transformers import SentenceTransformer
 from loguru import logger
 
 from agents.augment_query_generated import AugmentQueryGenerated
+from rag.embedding.device import embedding_device
 from app.core.config import settings
 from app.models.questions import Questions
 from app.repositories import CollectionsRepository
@@ -19,7 +20,10 @@ class QuestionsService(BaseService):
     """
     re_ranking = ReRanking()
     openai_chat = OpenAIChat(key=str('any'), model_name=str('qwen-0.5b'))
-    embedding_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
+    embedding_model = SentenceTransformer(
+        "sentence-transformers/all-mpnet-base-v2",
+        device=embedding_device(),
+    )
 
     def __init__(self, questions_repository: QuestionsRepository, collections_repository: CollectionsRepository,
                  qdrant_client: QdrantHttpClient, augment_query_generator: AugmentQueryGenerated) -> None:
@@ -44,14 +48,17 @@ class QuestionsService(BaseService):
             quries = [payload.question_text]
 
         # Generate embeddings for queries
-        query_embeddings = [self.embedding_model.encode(query) for query in quries]
+        query_embeddings = [
+            self.embedding_model.encode(query, convert_to_numpy=True)
+            for query in quries
+        ]
         
         # Search in Qdrant
         all_results = []
         for query_embedding in query_embeddings:
             search_result = self.qdrant_client.client.search(
                 collection_name=collection.vectordb_collection_name,
-                query_vector=query_embedding,
+                query_vector=query_embedding.tolist(),
                 limit=10
             )
             docs = [hit.payload.get("document", "") for hit in search_result]
@@ -126,7 +133,7 @@ class QuestionsService(BaseService):
             )
         except Exception as e:
             logger.error(f"Error in question_stream: {str(e)}")
-            yield {"error": str(e)}
+            yield {"data": "Could not generate an answer."}
 
     def clear_all(self):
         """

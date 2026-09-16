@@ -5,6 +5,8 @@ from loguru import logger
 from pypdf import PdfReader
 import pypandoc
 
+from rag.embedding.device import embedding_device
+
 # Ensure pandoc is available
 try:
     pypandoc.get_pandoc_version()
@@ -51,7 +53,10 @@ def read_file(file_path: str, file_type: str):
 class PipelineService:
     doc_cleaner = DocumentCleaner()
     doc_chunker = DocumentChunker()
-    embedding_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
+    embedding_model = SentenceTransformer(
+        "sentence-transformers/all-mpnet-base-v2",
+        device=embedding_device(),
+    )
 
     def __init__(self, files_repository: FilesRepository, qdrant_client: QdrantHttpClient):
         self.file_repository = files_repository
