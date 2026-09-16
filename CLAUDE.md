@@ -49,25 +49,15 @@ The served `/v1` OpenAI endpoint has **no authentication** — Ray Serve LLM has
 
 ## Architecture
 
-Three cooperating layers, plus standalone research code:
+The package is intentionally small — a CLI dispatcher over a single serving wrapper — plus standalone research code:
 
 - **`dillema/cli.py`** — argparse dispatcher. For `serve`, translates `--network-interface` into a Ray `runtime_env` that sets `GLOO_SOCKET_IFNAME` / `NCCL_SOCKET_IFNAME` (required for multi-node collective comms to bind the right NIC), then delegates to `LLMServe`.
 
 - **`dillema/serve/llm.py`** — `LLMServe` wraps Ray Serve's `LLMConfig` + `build_openai_app`. `build_app()` assembles engine kwargs (`tensor_parallel_size`, `pipeline_parallel_size`, `trust_remote_code`), an autoscaling config (`min_replicas`/`max_replicas`), and a runtime env that always sets `VLLM_USE_V1=1` and injects `HF_TOKEN` (arg or `HF_TOKEN` env). This is the public Python API: `from dillema.serve import LLMServe`.
 
-- **`dillema/ray/main.py`** — `RayContainer` manages Ray init/connect/shutdown lifecycle. Used by the web app, not by the CLI serve path.
-
-- **`dillema/app/`** — a **separate** FastAPI + Tailwind web UI (currently a prototype with hardcoded node data). It is independent from the CLI. Two gotchas: it constructs `RayContainer()` at module import (so a reachable Ray cluster is needed to import it), and `StaticFiles`/`Jinja2Templates` use relative paths (`static`, `templates`), so it must be run from inside `dillema/app/`.
+Cluster management is done via the `ray` CLI (`dillema head/worker/stop`) and observed through the Ray Dashboard (`:8265`); there is no bundled web UI. Application/UI concerns live in the RAGforge app (see below).
 
 **Parallelism model:** tensor parallelism (`--tensor-parallel`) splits a model across GPUs on a node; pipeline parallelism (`--pipeline-parallel`) splits across nodes. Both feed straight into vLLM engine kwargs.
-
-### Web UI (Tailwind)
-
-CSS is compiled, not CDN. From `dillema/app/`:
-```bash
-npm install
-npm run build   # npx tailwindcss -i ./input.css -o ./static/css/styles.css
-```
 
 ## Non-package directories
 

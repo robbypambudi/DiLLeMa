@@ -11,7 +11,6 @@ DiLLeMa is a distributed Large Language Model (LLM) serving system that provides
 - **OpenAI-Compatible API**: Standard OpenAI-compatible API endpoints for seamless integration
 - **Tensor and Pipeline Parallelism**: Support for both tensor and pipeline parallelism for large models
 - **Auto-scaling**: Automatic scaling of model replicas based on demand
-- **Web UI**: FastAPI-based web interface for managing deployments
 
 ## Installation
 
@@ -49,14 +48,10 @@ DiLLeMa/
 │
 ├── dillema/                    # Main package
 │   ├── cli.py                  # CLI interface (head, worker, serve, stop commands)
-│   ├── serve/                  # LLM serving module
-│   │   └── llm.py              # Ray Serve LLM wrapper
-│   ├── ray/                    # Ray utilities
-│   │   └── main.py             # Ray container and connection management
-│   └── app/                    # Web UI application
-│       ├── main.py             # FastAPI web interface
-│       └── templates/          # HTML templates
+│   └── serve/                  # LLM serving module
+│       └── llm.py              # Ray Serve LLM wrapper
 │
+├── deploy/                     # Deployment helpers (e.g. auth-proxy for the endpoint)
 ├── evaluation/                 # Evaluation scripts and tools
 ├── analysis/                  # Analysis notebooks and scripts
 ├── docs/                      # Documentation and assets
