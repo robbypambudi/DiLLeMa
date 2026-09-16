@@ -83,6 +83,7 @@ class App:
         self.db = self.container.db()
         self.qdrant = self.container.qdrant_client()
         self.model = self.container.embedding_model()
+        self.container.auth_service().seed_admin_if_empty()
         yield
         # Shutdown
         logger.info("Shutting down the application...")

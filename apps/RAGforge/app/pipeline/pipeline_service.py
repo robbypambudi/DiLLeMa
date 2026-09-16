@@ -92,6 +92,7 @@ class PipelineService:
                 {
                     "text": text,
                     "file_name": files.file_name,
+                    "file_id": str(files.id),
                 } for text in chunks
             ]
             logger.info("Preparing to add chunks to Qdrant for file: {}", files.id)
@@ -121,11 +122,13 @@ class PipelineService:
         except Exception as e:
             logger.error("Error processing file {}: {}", files.id, str(e))
             logger.exception("Full traceback:")
-            # Update the file status to error
-            self.file_repository.update(
-                id=files.id,
-                schema=Files(
-                    status="failed",
-                    processing_ended_at=datetime.now()
+            try:
+                self.file_repository.update(
+                    id=files.id,
+                    schema=Files(
+                        status="failed",
+                        processing_ended_at=datetime.now()
+                    )
                 )
-            )
+            except Exception:
+                logger.warning("Could not mark file {} as failed (row may have been deleted)", files.id)

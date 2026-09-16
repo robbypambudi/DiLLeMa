@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Send } from 'lucide-react'
+
+import { apiFetch } from '@/api'
+import { AppState } from '@/App'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { AppState } from '@/App'
-
-import { BACKEND_URL } from '@/config'
 
 interface ChatInputProps {
   appState: AppState
@@ -20,14 +20,14 @@ export function ChatInput({ appState, updateState }: ChatInputProps) {
     if (!input.trim() || !selectedCollection || isLoading) return
 
     const userMessage = { role: 'user' as const, content: input }
-    updateState({ 
+    updateState({
       messages: [...appState.messages, userMessage],
-      isLoading: true 
+      isLoading: true,
     })
     setInput('')
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/questions/stream`, {
+      const response = await apiFetch('/api/v1/questions/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -47,10 +47,10 @@ export function ChatInput({ appState, updateState }: ChatInputProps) {
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          
+
           const text = new TextDecoder().decode(value)
           const lines = text.split('\n')
-          
+
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               fullResponse += line.slice(6)
@@ -59,14 +59,14 @@ export function ChatInput({ appState, updateState }: ChatInputProps) {
         }
       }
 
-      updateState({ 
+      updateState({
         messages: [...appState.messages, userMessage, { role: 'assistant', content: fullResponse || 'No response received.' }],
-        isLoading: false 
+        isLoading: false,
       })
-    } catch (error) {
-      updateState({ 
-        messages: [...appState.messages, userMessage, { role: 'assistant', content: '❌ Could not reach the server.' }],
-        isLoading: false 
+    } catch {
+      updateState({
+        messages: [...appState.messages, userMessage, { role: 'assistant', content: 'Could not reach the server.' }],
+        isLoading: false,
       })
     }
   }
@@ -77,15 +77,14 @@ export function ChatInput({ appState, updateState }: ChatInputProps) {
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={selectedCollection ? "💭 Ask something..." : "Please select a collection first"}
+          placeholder={selectedCollection ? 'Ask something…' : 'Please select a collection first'}
           disabled={!selectedCollection || isLoading}
-          className="flex-1 shadow-md"
+          className="flex-1"
         />
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           disabled={!input.trim() || !selectedCollection || isLoading}
           size="default"
-          className="shadow-md"
         >
           <Send className="w-5 h-5" />
         </Button>

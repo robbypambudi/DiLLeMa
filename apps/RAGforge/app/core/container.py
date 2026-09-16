@@ -7,6 +7,8 @@ from app.pipeline.pipeline_service import PipelineService
 from app.repositories import CollectionsRepository
 from app.repositories.files_repository import FilesRepository
 from app.repositories.questions_repository import QuestionsRepository
+from app.repositories.users_repository import UsersRepository
+from app.services.auth_service import AuthService
 from app.services.collection_service import CollectionsService
 from app.services.files_service import FilesService
 from app.services.question_service import QuestionsService
@@ -17,6 +19,7 @@ from rag.embedding.embedding_factory import EmbeddingFactory
 class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=[
+            "app.api.v1.endpoints.auth",
             "app.api.v1.endpoints.questions",
             "app.api.v1.endpoints.collections",
             "app.api.v1.endpoints.files",
@@ -34,18 +37,24 @@ class Container(containers.DeclarativeContainer):
     db = providers.Singleton(Database, db_url=str(settings.SQLALCHEMY_DATABASE_URI))
     augment_query_generator = providers.Singleton(AugmentQueryGenerated, api_key=str(settings.OPENAI_API_KEY))
 
-    # Repository layer
     collections_repository = providers.Factory(CollectionsRepository, session_factory=db.provided.session)
     files_repository = providers.Factory(FilesRepository, session_factory=db.provided.session)
     questions_repository = providers.Factory(QuestionsRepository, session_factory=db.provided.session)
+    users_repository = providers.Factory(UsersRepository, session_factory=db.provided.session)
 
-    # Service layer
     pipeline_service = providers.Factory(PipelineService, files_repository=files_repository,
                                          qdrant_client=qdrant_client)
     collection_service = providers.Factory(CollectionsService, collections_repository=collections_repository,
+                                           files_repository=files_repository,
                                            qdrant_client=qdrant_client, embedding_model=embedding_model)
-    files_service = providers.Factory(FilesService, files_repository=files_repository)
+    files_service = providers.Factory(
+        FilesService,
+        files_repository=files_repository,
+        collections_repository=collections_repository,
+        qdrant_client=qdrant_client,
+    )
     question_service = providers.Factory(QuestionsService, questions_repository=questions_repository,
                                          collections_repository=collections_repository,
                                          qdrant_client=qdrant_client,
                                          augment_query_generator=augment_query_generator)
+    auth_service = providers.Factory(AuthService, users_repository=users_repository)

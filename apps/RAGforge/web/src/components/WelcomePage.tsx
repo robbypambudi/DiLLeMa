@@ -1,6 +1,9 @@
-import { Button } from '@/components/ui/Button'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { useNavigate } from 'react-router-dom'
+
 import { AppState } from '@/App'
+import { useAuth } from '@/auth'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { Button } from '@/components/ui/Button'
 
 interface WelcomePageProps {
   onCreateChat: () => void
@@ -9,13 +12,36 @@ interface WelcomePageProps {
 }
 
 export function WelcomePage({ onCreateChat, appState, updateState }: WelcomePageProps) {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const toggleTheme = () => {
     updateState({ theme: appState.theme === 'light' ? 'dark' : 'light' })
   }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="p-4 flex justify-end">
+      <header className="p-4 flex justify-end gap-2">
+        {user?.role === 'admin' && (
+          <Button variant="outline" size="sm" onClick={() => navigate('/admin')}>
+            Admin
+          </Button>
+        )}
+        {user ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              logout()
+              navigate('/', { replace: true })
+            }}
+          >
+            Logout
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => navigate('/login')}>
+            Sign in
+          </Button>
+        )}
         <ThemeToggle theme={appState.theme} onToggle={toggleTheme} />
       </header>
       

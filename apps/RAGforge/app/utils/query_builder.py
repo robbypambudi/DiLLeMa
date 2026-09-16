@@ -1,9 +1,7 @@
-from typing import Type
+from uuid import UUID
 
 from sqlalchemy import ColumnElement
 from sqlalchemy.sql.expression import and_
-
-from app.models import BaseModel
 
 SQLALCHEMY_QUERY_MAPPER = {
     "eq": "__eq__",
@@ -35,12 +33,19 @@ def dict_to_sqlalchemy_query(
         if attr is None:
             continue
         option_from_dict = copied_dict.pop(key)
-        if type(option_from_dict) in [int, float]:
-            filters.append(attr == option_from_dict)
-        elif type(option_from_dict) in [str]:
-            filters.append(attr.like("%" + option_from_dict + "%"))
-        elif type(option_from_dict) in [bool]:
+        if isinstance(option_from_dict, bool):
             filters.append(attr.is_(option_from_dict))
+        elif isinstance(option_from_dict, UUID):
+            filters.append(attr == option_from_dict)
+        elif isinstance(option_from_dict, (int, float)) and not isinstance(option_from_dict, bool):
+            filters.append(attr == option_from_dict)
+        elif isinstance(option_from_dict, str):
+            if option_from_dict == "":
+                continue
+            if hasattr(attr, "ilike"):
+                filters.append(attr.ilike("%" + option_from_dict + "%"))
+            else:
+                filters.append(attr.like("%" + option_from_dict + "%"))
 
     for custom_option in copied_dict:
         if "__" not in custom_option:
@@ -52,6 +57,9 @@ def dict_to_sqlalchemy_query(
         option_from_dict = copied_dict[custom_option]
         if command == "in":
             filters.append(attr.in_([option.strip() for option in option_from_dict.split(",")]))
+        elif command == "notin":
+            values = [option.strip() for option in str(option_from_dict).split(",") if option.strip()]
+            filters.append(~attr.in_(values))
         elif command in SQLALCHEMY_QUERY_MAPPER.keys():
             filters.append(getattr(attr, SQLALCHEMY_QUERY_MAPPER[command])(option_from_dict))
         elif command == "isnull":

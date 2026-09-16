@@ -1,7 +1,6 @@
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import Distance, FieldCondition, Filter, MatchValue, PayloadSchemaType, PointStruct, VectorParams
 from loguru import logger
-import uuid
 
 
 class QdrantHttpClient:
@@ -26,6 +25,14 @@ class QdrantHttpClient:
                 collection_name=collection_name,
                 vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
             )
+            try:
+                self.client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name="file_id",
+                    field_schema=PayloadSchemaType.KEYWORD,
+                )
+            except Exception as index_error:
+                logger.warning(f"Could not create file_id payload index on '{collection_name}': {index_error}")
             logger.info(f"Created collection '{collection_name}'")
             return collection_name
         except Exception as e:
@@ -89,7 +96,29 @@ class QdrantHttpClient:
             self.client.delete_collection(collection_name)
             logger.info(f"Deleted collection '{collection_name}'.")
         except Exception as e:
+            message = str(e).lower()
+            if "not found" in message or "doesn't exist" in message or "does not exist" in message:
+                logger.warning(f"Qdrant collection '{collection_name}' already absent: {e}")
+                return
             logger.error(f"Failed to delete collection '{collection_name}': {e}")
+            raise
+
+    def delete_points_by_file_id(self, collection_name: str, file_id: str):
+        try:
+            self.client.delete(
+                collection_name=collection_name,
+                points_selector=Filter(
+                    must=[FieldCondition(key="file_id", match=MatchValue(value=str(file_id)))]
+                ),
+            )
+            logger.info(f"Deleted points for file {file_id} from '{collection_name}'.")
+        except Exception as e:
+            message = str(e).lower()
+            if "not found" in message or "doesn't exist" in message or "does not exist" in message:
+                logger.warning(f"Qdrant points for file {file_id} already absent: {e}")
+                return
+            logger.warning(f"Could not delete Qdrant points for file {file_id}: {e}")
+            raise
 
     def get_documents(self, collection_name: str):
         try:

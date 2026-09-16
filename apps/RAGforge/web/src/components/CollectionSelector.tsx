@@ -4,7 +4,7 @@ import { AppState, Collection } from '@/App'
 // import { AddCollectionModal } from './AddCollectionModal'
 // import { ManageCollectionModal } from './ManageCollectionModal'
 
-import { BACKEND_URL } from '@/config'
+import { apiFetch } from '@/api'
 
 interface CollectionSelectorProps {
   appState: AppState
@@ -25,7 +25,7 @@ export function CollectionSelector({ appState, updateState }: CollectionSelector
 
   const fetchCollections = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/collection?page=1&collection_name&vectordb_collection_name`)
+      const response = await apiFetch(`/api/v1/collection?page=1&page_size=100`)
       const data = await response.json()
       
       console.log('API Response:', data) // Debug log
@@ -36,7 +36,7 @@ export function CollectionSelector({ appState, updateState }: CollectionSelector
           name: col.collection_name,
           description: col.description
         }))
-        console.log('Fetched collections:', fetchedCollections) // Debug log
+        console.log('Fetched collections:', fetchedCollections)
         updateState({ collections: fetchedCollections })
       }
     } catch (error) {
@@ -49,7 +49,7 @@ export function CollectionSelector({ appState, updateState }: CollectionSelector
       selectedCollection: collection,
       messages: [{
         role: 'assistant',
-        content: '👋 Welcome to our chatbot! Feel free to ask about anything.'
+        content: 'Welcome. Select a collection and ask a question.',
       }]
     })
   }

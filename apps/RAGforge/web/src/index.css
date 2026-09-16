@@ -17,6 +17,8 @@
     --accent: 215 100% 27%;
     --accent-foreground: 210 40% 98%;
     --ring: 215 100% 27%;
+    --destructive: 0 84% 50%;
+    --destructive-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -33,6 +35,8 @@
     --accent: 215 75% 65%;
     --accent-foreground: 0 0% 15%;
     --ring: 215 75% 65%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
   }
 }
 

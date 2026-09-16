@@ -1,62 +1,81 @@
 import uuid
 
 from dependency_injector.wiring import Provide
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends
+from loguru import logger
 
 from app.core.container import Container
+from app.core.dependencies import get_current_user, require_admin
 from app.core.middleware import inject
+from app.models.users import Users
 from app.pipeline.pipeline_service import PipelineService
-from app.schema.base_schema import BaseResponse
-from app.schema.file_schema import FindFiles, CreateFileRequest, ResponseFiles
+from app.schema.base_schema import BaseResponse, PaginatedResponse
+from app.schema.file_schema import CreateFileRequest, FindFiles, ResponseFiles
 from app.services.files_service import FilesService
 
 router = APIRouter(prefix="/files", tags=["files"])
 
 
-@router.get("", tags=["get"])
+@router.get("", tags=["get"], response_model=PaginatedResponse[ResponseFiles])
 @inject
 def index(
         query: FindFiles = Depends(),
+        _user: Users = Depends(get_current_user),
         service: FilesService = Depends(Provide[Container.files_service])
 ):
-    """
-    Get all files
-    """
-    return service.get_list(query)
+    result = service.get_list(query)
+    return PaginatedResponse(
+        message="Files retrieved successfully",
+        **result,
+    )
 
 
 def run_pipeline_with_error_handling(pipeline_service, files):
-    """Wrapper to handle pipeline errors in background tasks"""
     try:
         pipeline_service.run_pipeline(files)
     except Exception as e:
-        from loguru import logger
         logger.error(f"Background pipeline failed for file {files.id}: {e}")
         logger.exception("Full traceback:")
 
-# Create a new file
+
 @router.post("", tags=["post"], response_model=BaseResponse[ResponseFiles])
 @inject
 def create(
         background_tasks: BackgroundTasks,
         payload: CreateFileRequest = Depends(),
+        _admin: Users = Depends(require_admin),
         service: FilesService = Depends(Provide[Container.files_service]),
         pipeline_service: PipelineService = Depends(Provide[Container.pipeline_service])
 ):
-    """
-    Create a new file
-    """
     response = service.create(payload)
-
-    # Add the file to the pipeline with error handling
     background_tasks.add_task(
         run_pipeline_with_error_handling,
         pipeline_service,
         response
     )
-
     return BaseResponse(
         message="File created successfully",
+        data=response
+    )
+
+
+@router.post("/{file_id}/retry", tags=["post"], response_model=BaseResponse[ResponseFiles])
+@inject
+def retry(
+        file_id: uuid.UUID,
+        background_tasks: BackgroundTasks,
+        _admin: Users = Depends(require_admin),
+        service: FilesService = Depends(Provide[Container.files_service]),
+        pipeline_service: PipelineService = Depends(Provide[Container.pipeline_service])
+):
+    response = service.retry(file_id)
+    background_tasks.add_task(
+        run_pipeline_with_error_handling,
+        pipeline_service,
+        response
+    )
+    return BaseResponse(
+        message="File queued for retry",
         data=response
     )
 
@@ -65,25 +84,24 @@ def create(
 @inject
 def delete(
         file_id: uuid.UUID,
+        _admin: Users = Depends(require_admin),
         service: FilesService = Depends(Provide[Container.files_service])
 ):
-    """
-    Delete a file
-    """
-    return service.remove_by_id(file_id)
+    service.delete_file(file_id)
+    return BaseResponse(
+        message="File deleted successfully",
+        data=None,
+    )
 
 
-@router.get("/{file_id}", tags=["get"])
+@router.get("/{file_id}", tags=["get"], response_model=BaseResponse[ResponseFiles])
 @inject
 def get_file(
         file_id: uuid.UUID,
+        _user: Users = Depends(get_current_user),
         service: FilesService = Depends(Provide[Container.files_service])
 ):
-    """
-    Get a file by ID
-    """
     file = service.get_by_id(file_id)
-
     return BaseResponse(
         message="File retrieved successfully",
         data=file

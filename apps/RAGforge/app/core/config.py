@@ -39,6 +39,9 @@ class Settings(BaseSettings):
 
     API_V1_STR: str = "/app"
     SECRET_KEY: str = secrets.token_urlsafe(32)
+    JWT_EXPIRE_SECONDS: int = 28800
+    ADMIN_EMAIL: str | None = None
+    ADMIN_PASSWORD: str | None = None
     FRONTEND_HOST: str = "http://localhost:3000"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
 

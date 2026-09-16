@@ -8,9 +8,23 @@ class DuplicatedError(HTTPException):
         super().__init__(status.HTTP_400_BAD_REQUEST, detail, headers)
 
 
+class UnauthorizedError(HTTPException):
+    def __init__(self, detail: Any = None, headers: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(
+            status.HTTP_401_UNAUTHORIZED,
+            detail or "Not authenticated",
+            headers or {"WWW-Authenticate": "Bearer"},
+        )
+
+
 class AuthError(HTTPException):
     def __init__(self, detail: Any = None, headers: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(status.HTTP_403_FORBIDDEN, detail, headers)
+        super().__init__(status.HTTP_403_FORBIDDEN, detail or "Forbidden", headers)
+
+
+class ConflictError(HTTPException):
+    def __init__(self, detail: Any = None, headers: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(status.HTTP_409_CONFLICT, detail, headers)
 
 
 class NotFoundError(HTTPException):

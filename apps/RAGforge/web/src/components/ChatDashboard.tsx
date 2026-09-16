@@ -1,20 +1,23 @@
 import { ArrowLeft } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { CollectionSelector } from '@/components/CollectionSelector'
-import { ChatWindow } from '@/components/ChatWindow'
-import { ChatInput } from '@/components/ChatInput'
+import { useNavigate } from 'react-router-dom'
+
 import { AppState } from '@/App'
+import { useAuth } from '@/auth'
+import { ChatInput } from '@/components/ChatInput'
+import { ChatWindow } from '@/components/ChatWindow'
+import { CollectionSelector } from '@/components/CollectionSelector'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { Button } from '@/components/ui/Button'
 
 interface ChatDashboardProps {
   onBack: () => void
   appState: AppState
   updateState: (updates: Partial<AppState>) => void
-  onManageCollections: () => void
 }
 
 export function ChatDashboard({ onBack, appState, updateState }: ChatDashboardProps) {
-// export function ChatDashboard({ onBack, appState, updateState, onManageCollections }: ChatDashboardProps) {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const toggleTheme = () => {
     updateState({ theme: appState.theme === 'light' ? 'dark' : 'light' })
   }
@@ -28,26 +31,48 @@ export function ChatDashboard({ onBack, appState, updateState }: ChatDashboardPr
             Back
           </Button>
           <div className="flex items-center space-x-3">
-            <img 
-              src="/assets/logo-light.png" 
-              alt="RAGforge" 
+            <img
+              src="/assets/logo-light.png"
+              alt="RAGforge"
               className="h-8 dark:hidden"
             />
-            <img 
-              src="/assets/logo-dark.png" 
-              alt="RAGforge" 
+            <img
+              src="/assets/logo-dark.png"
+              alt="RAGforge"
               className="h-8 hidden dark:block"
             />
-            <h1 className="text-2xl font-semibold">D<span className="text-accent">i</span>LL<span className="text-accent">e</span>M<span className="text-accent">a</span> Chat</h1>
+            <h1 className="text-2xl font-semibold">RAGforge</h1>
           </div>
         </div>
-        <ThemeToggle theme={appState.theme} onToggle={toggleTheme} />
+        <div className="flex items-center gap-2">
+          {user?.role === 'admin' && (
+            <Button variant="outline" size="sm" onClick={() => navigate('/admin')}>
+              Admin
+            </Button>
+          )}
+          {user ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                logout()
+                navigate('/', { replace: true })
+              }}
+            >
+              Logout
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => navigate('/login')}>
+              Sign in
+            </Button>
+          )}
+          <ThemeToggle theme={appState.theme} onToggle={toggleTheme} />
+        </div>
       </header>
-      
+
       <div className="flex-1 flex overflow-hidden">
-        {/* <CollectionSelector appState={appState} updateState={updateState} onManageCollections={onManageCollections} /> */}
         <CollectionSelector appState={appState} updateState={updateState} />
-        
+
         <div className="flex-1 flex flex-col">
           <ChatWindow appState={appState} />
           <ChatInput appState={appState} updateState={updateState} />

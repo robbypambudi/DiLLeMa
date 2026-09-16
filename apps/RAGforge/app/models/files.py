@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import Optional
 
 import sqlalchemy as sa
@@ -17,8 +18,8 @@ class Files(BaseModel, table=True):
     status: str = Field(default="pending",
                         sa_column=Column(sa.Enum("pending", "processing", "completed", "failed", "deleted", "archived"),
                                          nullable=False))
-    processing_started_at: str = Field(default=None, nullable=True)
-    processing_ended_at: str = Field(default=None, nullable=True)
+    processing_started_at: Optional[datetime] = Field(default=None, nullable=True)
+    processing_ended_at: Optional[datetime] = Field(default=None, nullable=True)
     collection_id: uuid.UUID = Field(foreign_key="collections.id", nullable=False)
 
     collection: Optional["Collections"] = Relationship(
