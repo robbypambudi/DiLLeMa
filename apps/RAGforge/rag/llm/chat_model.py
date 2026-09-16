@@ -10,6 +10,7 @@ from loguru import logger
 # so the app is not pinned to a specific host/IP.
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "any")
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen-7b")
 
 prompt = """
 Kamu adalah chatbot interaktif bernama InformatikBot.
@@ -44,7 +45,7 @@ class OpenAIChat:
     Class untuk mengelola interaksi chat dengan OpenAI API.
     """
 
-    def __init__(self, key: str, model_name: str = "qwen-0.5b") -> None:
+    def __init__(self, key: str, model_name: str | None = None) -> None:
         """
         Inisialisasi OpenAIChat.
 
@@ -52,9 +53,10 @@ class OpenAIChat:
             key (str): OpenAI API key
             model_name (str): Nama model OpenAI yang akan digunakan
         """
+        model_name = model_name or LLM_MODEL
         self.chat_model = ChatOpenAI(
             base_url=LLM_BASE_URL,
-            api_key=LLM_API_KEY,
+            api_key=LLM_API_KEY or key,
             model=model_name,
             temperature=0.7
         )
