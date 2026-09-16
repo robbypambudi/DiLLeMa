@@ -1,0 +1,40 @@
+# DiLLeMa auth proxy
+#
+# The Ray Serve OpenAI-compatible endpoint has NO built-in authentication,
+# so anyone who can reach it can use your GPUs. This reverse proxy enforces a
+# bearer token at the network edge and forwards authorized traffic to Ray Serve.
+#
+# Usage:
+#   1. Bind DiLLeMa to localhost only (not 0.0.0.0):
+#        dillema serve --model-id ... --model-source ... \
+#          --app-host 127.0.0.1 --app-port 8001
+#   2. Run this proxy on the public port with a secret token:
+#        LLM_API_TOKEN='choose-a-long-random-secret' \
+#          caddy run --config deploy/auth-proxy/Caddyfile
+#   3. Clients (e.g. RAGforge) must send:
+#        Authorization: Bearer <the same token>
+#      In RAGforge set LLM_API_KEY to that token and LLM_BASE_URL to this proxy.
+#
+# Validate before deploying:  caddy validate --config deploy/auth-proxy/Caddyfile
+
+{
+	admin off
+}
+
+:8000 {
+	# `route` preserves directive order so unauthorized requests are rejected
+	# before ever reaching reverse_proxy.
+	route {
+		# Reject anything whose Authorization header is not an exact match.
+		# If LLM_API_TOKEN is unset the required value is just "Bearer ",
+		# which fails closed (all normal requests are denied).
+		@unauthorized not header Authorization "Bearer {$LLM_API_TOKEN}"
+		respond @unauthorized "Unauthorized" 401
+
+		reverse_proxy 127.0.0.1:8001 {
+			# Disable response buffering so streaming (SSE) chat completions
+			# are flushed to the client as they arrive.
+			flush_interval -1
+		}
+	}
+}

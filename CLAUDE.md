@@ -43,6 +43,10 @@ Entry point is `dillema.cli:main` (registered as the `dillema` console script). 
 
 The head/worker/stop commands are thin wrappers that **shell out to the `ray` CLI**; the real serving logic lives in `serve`.
 
+## Securing the endpoint
+
+The served `/v1` OpenAI endpoint has **no authentication** — Ray Serve LLM has no built-in API-key support and no official in-process middleware pattern ([ray#59578](https://github.com/ray-project/ray/issues/59578)). Do **not** expose `dillema serve` directly on a public interface. The supported pattern (see `deploy/auth-proxy/`) is to bind DiLLeMa to localhost (`--app-host 127.0.0.1 --app-port 8001`) and put a bearer-token reverse proxy (Caddy) in front on the public port. RAGforge authenticates with `LLM_API_KEY` / `LLM_BASE_URL`.
+
 ## Architecture
 
 Three cooperating layers, plus standalone research code:
