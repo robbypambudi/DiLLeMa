@@ -1,0 +1,51 @@
+{
+  "enabled": true,
+  "entity_types": [
+    "Person",
+    "Organization",
+    "Program",
+    "Procedure",
+    "Requirement",
+    "Concept"
+  ],
+  "relations": [
+    {
+      "name": "REQUIRES",
+      "subject_types": [
+        "Program",
+        "Procedure"
+      ],
+      "object_types": [
+        "Requirement"
+      ],
+      "description": "Explicit requirement, retaining all conditions."
+    },
+    {
+      "name": "MANAGED_BY",
+      "subject_types": [
+        "Program",
+        "Procedure"
+      ],
+      "object_types": [
+        "Person",
+        "Organization"
+      ],
+      "description": "Explicit responsible party."
+    },
+    {
+      "name": "HAS_PROCEDURE",
+      "subject_types": [
+        "Program"
+      ],
+      "object_types": [
+        "Procedure"
+      ],
+      "description": "Procedure for a program."
+    }
+  ],
+  "merge_by_name": [
+    "Program",
+    "Organization"
+  ],
+  "instructions": "Extract only explicit knowledge from the supplied source."
+}

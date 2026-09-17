@@ -31,7 +31,8 @@ class ReRanking:
         if not pairs:
             raise ValueError("Pairs cannot be None or empty.")
 
-        scores = self.model.predict(pairs)
+        # Optional third item carries provenance and must survive ranking.
+        scores = self.model.predict([pair[:2] for pair in pairs])
         sorted_pairs = sorted(zip(scores, pairs), key=lambda x: x[0], reverse=True)
 
         return [pair for _, pair in sorted_pairs[:top_results]]

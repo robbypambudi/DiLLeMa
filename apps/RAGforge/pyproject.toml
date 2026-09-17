@@ -114,8 +114,11 @@ dependencies = [
     "zstandard==0.23.0",
 ]
 
-[tool.setuptools]
-packages = ['rag', 'app', 'agents']
+[tool.setuptools.packages.find]
+include = ["rag*", "app*", "agents*", "knowledge*"]
+
+[tool.setuptools.package-data]
+knowledge = ["examples/*.txt", "examples/*.json"]
 
 [tool.ruff]
 exclude = [

@@ -8,6 +8,7 @@ import { ErrorBanner } from '@/components/ErrorBanner'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { KnowledgePanel } from '@/components/KnowledgePanel'
 
 type CollectionDetail = {
   id: string
@@ -306,6 +307,7 @@ export function CollectionDetailPage() {
           </div>
         )}
       </section>
+      {id && <KnowledgePanel key={id} collectionId={id} files={files} />}
       <ConfirmDialog
         open={!!pendingFile}
         title="Delete document"

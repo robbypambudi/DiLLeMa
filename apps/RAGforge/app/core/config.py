@@ -3,7 +3,7 @@ import os
 import secrets
 from typing import Any, Literal, Annotated, ClassVar
 
-from pydantic import (AnyUrl, BeforeValidator, computed_field, HttpUrl)
+from pydantic import AnyUrl, BeforeValidator, computed_field, HttpUrl, Field
 from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -23,19 +23,20 @@ def load_env() -> None:
     from dotenv import load_dotenv
     import os
 
-    env_path = os.path.join(os.path.dirname(__file__), '../../.env')
+    env_path = os.path.join(os.path.dirname(__file__), "../../.env")
     load_dotenv(env_path)
     logging.log(1, f"Loaded environment variables from {env_path}")
 
 
+load_env()
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file='../../.env',
-        env_ignore_empty=True,
-        extra='ignore'
+        env_file="../../.env", env_ignore_empty=True, extra="ignore"
     )
 
-    FILE_PATH: ClassVar['str'] = os.path.dirname(__file__) + "/../files"
+    FILE_PATH: ClassVar["str"] = os.path.dirname(__file__) + "/../files"
 
     API_V1_STR: str = "/app"
     SECRET_KEY: str = secrets.token_urlsafe(32)
@@ -49,9 +50,7 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
     HUGGINGFACE_API_KEY: str = os.getenv("HUGGINGFACE_API_KEY", "")
 
-    BACKEND_CORS_ORIGINS: Annotated[
-        list[AnyUrl] | str, BeforeValidator(parse_cors)
-    ] = [
+    BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = [
         "http://localhost:8501",
         "http://localhost:3000",
     ]
@@ -59,7 +58,9 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def all_cors_origins(self) -> list[str]:
-        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [self.FRONTEND_HOST]
+        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
+            self.FRONTEND_HOST
+        ]
 
     PROJECT_NAME: str = "DiLLeMa"
     SENTRY_DSN: HttpUrl | None = None
@@ -71,6 +72,15 @@ class Settings(BaseSettings):
 
     QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
+
+    KG_ENABLED: bool = False
+    KG_LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")
+    KG_LLM_API_KEY: str = os.getenv("LLM_API_KEY", "any")
+    KG_LLM_MODEL: str = os.getenv("LLM_MODEL", "qwen-7b")
+    KG_MAX_CHUNKS: int = Field(default=200, ge=1, le=2000)
+    KG_MAX_OUTPUT_TOKENS: int = Field(default=4096, ge=256, le=16384)
+    KG_RETRIEVAL_LIMIT: int = Field(default=12, ge=1, le=64)
+    KG_EXTRACTION_FORMAT: Literal["text", "json_schema"] = "text"
 
     @computed_field
     @property
@@ -85,5 +95,4 @@ class Settings(BaseSettings):
         )
 
 
-load_env()
 settings = Settings()  # type: ignore

@@ -1,6 +1,7 @@
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, FieldCondition, Filter, MatchValue, PayloadSchemaType, PointStruct, VectorParams
 from loguru import logger
+from uuid import NAMESPACE_URL, uuid5
 
 
 class QdrantHttpClient:
@@ -54,8 +55,8 @@ class QdrantHttpClient:
                 if metadatas and i < len(metadatas):
                     payload.update(metadatas[i])
                 
-                # Convert string ID to hash for Qdrant
-                numeric_id = hash(doc_id) % (2**63 - 1)  # Ensure positive 64-bit int
+                # Stable across interpreter restarts and retries.
+                numeric_id = str(uuid5(NAMESPACE_URL, f"{collection_name}:{doc_id}"))
                 
                 points.append(PointStruct(
                     id=numeric_id,

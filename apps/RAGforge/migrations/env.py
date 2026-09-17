@@ -7,6 +7,8 @@ from sqlalchemy import pool
 from sqlmodel import SQLModel
 
 from app.core.config import settings
+from app.models import collections, files, questions, users  # noqa: F401
+from knowledge import tables  # noqa: F401
 
 cmd_kwargs = context.get_x_argument(as_dictionary=True)
 if "ENV" in cmd_kwargs:
@@ -22,7 +24,7 @@ if not config.get_main_option("sqlalchemy.url"):
     config.set_main_option("sqlalchemy.url", str(settings.SQLALCHEMY_DATABASE_URI))
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.  
+# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
@@ -69,6 +71,15 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Test runners may supply an explicitly scoped connection. Never create a
+    # second connection to the application database in that case.
+    supplied = config.attributes.get("connection")
+    if supplied is not None:
+        context.configure(connection=supplied, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -76,9 +87,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

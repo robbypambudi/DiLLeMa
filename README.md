@@ -6,6 +6,12 @@ DiLLeMa is a distributed Large Language Model (LLM) serving system that provides
 
 ## Features
 
+An opt-in Knowledge Graph pilot for DiLLeMa v2 is available in RAGforge. See the
+[implementation plan and agent handoff](docs/DILLEMA_V2_PLAN.md),
+[setup/runbook](docs/DILLEMA_V2_RUNBOOK.md),
+[validation findings](docs/DILLEMA_V2_VALIDATION.md), and
+[target architecture](docs/DILLEMA_V2_DESIGN.md).
+
 - **Distributed LLM Serving**: Deploy LLMs across multiple GPUs and nodes using Ray and VLLM
 - **Simple CLI Interface**: Easy-to-use command-line interface for managing Ray clusters and deploying models
 - **OpenAI-Compatible API**: Standard OpenAI-compatible API endpoints for seamless integration
@@ -122,7 +128,7 @@ Deploy a model on a single machine:
 ```bash
 dillema serve \
   --model-id qwen-0.5b \
-  --model-source Qwen/Qwen2.5-0.5B-Instruct
+  --model-source Qwen/Qwen2.5-1.5B-Instruct
 ```
 
 ### Multi-Node Cluster Deployment

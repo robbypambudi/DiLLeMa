@@ -1,0 +1,206 @@
+{
+  "status": "failed",
+  "prompt": "evidence-extraction-5",
+  "model": "qwen-7b",
+  "output_format": "json_schema",
+  "attempts": [
+    {
+      "validation_errors": [
+        {
+          "location": [
+            "claims",
+            1
+          ],
+          "type": "relation_direction_or_type",
+          "message": "Correct subject/object direction and types to match the ontology; do not invent predicates",
+          "subject_type": "Requirement",
+          "object_type": "Program",
+          "expected_subject_types": [
+            "Program",
+            "Procedure"
+          ],
+          "expected_object_types": [
+            "Requirement"
+          ],
+          "allowed_predicates": [
+            "REQUIRES",
+            "MANAGED_BY",
+            "HAS_PROCEDURE"
+          ]
+        }
+      ],
+      "extraction": {
+        "entities": [
+          {
+            "key": "p1",
+            "name": "Program A",
+            "type": "Program",
+            "mention": "Program A"
+          },
+          {
+            "key": "o1",
+            "name": "Organisasi B",
+            "type": "Organization",
+            "mention": "Organisasi B"
+          },
+          {
+            "key": "p2",
+            "name": "Program C",
+            "type": "Program",
+            "mention": "Program C"
+          },
+          {
+            "key": "p3",
+            "name": "Pengajuan C",
+            "type": "Procedure",
+            "mention": "Pengajuan C"
+          },
+          {
+            "key": "r1",
+            "name": "Minimal 80 SKS",
+            "type": "Requirement",
+            "mention": "wajib sudah lulus minimal 80 SKS"
+          }
+        ],
+        "claims": [
+          {
+            "subject": "p1",
+            "predicate": "MANAGED_BY",
+            "object": "o1",
+            "statement": "Program A dikelola Organisasi B.",
+            "evidence_quote": "Program A dikelola Organisasi B.",
+            "qualifiers": {}
+          },
+          {
+            "subject": "r1",
+            "predicate": "REQUIRES",
+            "object": "p1",
+            "statement": "Mahasiswa reguler wajib sudah lulus minimal 80 SKS untuk mengikuti Program A.",
+            "evidence_quote": "Mahasiswa reguler wajib sudah lulus minimal 80 SKS untuk mengikuti Program A.",
+            "qualifiers": {
+              "modality": "required",
+              "valid_from": "2026"
+            }
+          },
+          {
+            "subject": "p2",
+            "predicate": "MANAGED_BY",
+            "object": "o1",
+            "statement": "Program C dikelola Organisasi B.",
+            "evidence_quote": "Program C dikelola Organisasi B.",
+            "qualifiers": {}
+          },
+          {
+            "subject": "p2",
+            "predicate": "HAS_PROCEDURE",
+            "object": "p3",
+            "statement": "Program C memiliki prosedur Pengajuan C.",
+            "evidence_quote": "Program C memiliki prosedur Pengajuan C.",
+            "qualifiers": {}
+          }
+        ]
+      }
+    },
+    {
+      "validation_errors": [
+        {
+          "location": [
+            "claims",
+            1
+          ],
+          "type": "relation_direction_or_type",
+          "message": "Correct subject/object direction and types to match the ontology; do not invent predicates",
+          "subject_type": "Requirement",
+          "object_type": "Program",
+          "expected_subject_types": [
+            "Program",
+            "Procedure"
+          ],
+          "expected_object_types": [
+            "Requirement"
+          ],
+          "allowed_predicates": [
+            "REQUIRES",
+            "MANAGED_BY",
+            "HAS_PROCEDURE"
+          ]
+        }
+      ],
+      "extraction": {
+        "entities": [
+          {
+            "key": "p1",
+            "name": "Program A",
+            "type": "Program",
+            "mention": "Program A"
+          },
+          {
+            "key": "o1",
+            "name": "Organisasi B",
+            "type": "Organization",
+            "mention": "Organisasi B"
+          },
+          {
+            "key": "p2",
+            "name": "Program C",
+            "type": "Program",
+            "mention": "Program C"
+          },
+          {
+            "key": "p3",
+            "name": "Pengajuan C",
+            "type": "Procedure",
+            "mention": "Pengajuan C"
+          },
+          {
+            "key": "r1",
+            "name": "Minimal 80 SKS",
+            "type": "Requirement",
+            "mention": "wajib sudah lulus minimal 80 SKS"
+          }
+        ],
+        "claims": [
+          {
+            "subject": "p1",
+            "predicate": "MANAGED_BY",
+            "object": "o1",
+            "statement": "Program A dikelola Organisasi B.",
+            "evidence_quote": "Program A dikelola Organisasi B.",
+            "qualifiers": {}
+          },
+          {
+            "subject": "r1",
+            "predicate": "REQUIRES",
+            "object": "p1",
+            "statement": "Mahasiswa reguler wajib sudah lulus minimal 80 SKS untuk mengikuti Program A.",
+            "evidence_quote": "Mahasiswa reguler wajib sudah lulus minimal 80 SKS untuk mengikuti Program A.",
+            "qualifiers": {
+              "modality": "required",
+              "valid_from": "2026"
+            }
+          },
+          {
+            "subject": "p2",
+            "predicate": "MANAGED_BY",
+            "object": "o1",
+            "statement": "Program C dikelola Organisasi B.",
+            "evidence_quote": "Program C dikelola Organisasi B.",
+            "qualifiers": {}
+          },
+          {
+            "subject": "p2",
+            "predicate": "HAS_PROCEDURE",
+            "object": "p3",
+            "statement": "Program C memiliki prosedur Pengajuan C.",
+            "evidence_quote": "Program C memiliki prosedur Pengajuan C.",
+            "qualifiers": {}
+          }
+        ]
+      }
+    }
+  ],
+  "executed_on": "2026-09-17",
+  "fixture": "apps/RAGforge/knowledge/examples/pilot.txt",
+  "scope": "fictional live-model smoke; no application database writes",
+  "semantic_review_required": true
+}
