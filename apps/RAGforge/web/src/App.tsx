@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useOutletContext } from 'react-router-dom'
 
 import { AuthProvider, useAuth } from '@/auth'
 import { ChatDashboard } from '@/components/ChatDashboard'
@@ -54,8 +54,12 @@ function RequireAdmin() {
   return <Outlet />
 }
 
-function ChatApp() {
-  const [currentView, setCurrentView] = useState<'welcome' | 'chat'>('welcome')
+type PublicOutlet = {
+  appState: AppState
+  updateState: (updates: Partial<AppState>) => void
+}
+
+function PublicLayout() {
   const [appState, setAppState] = useState<AppState>({
     theme: 'light',
     collections: [],
@@ -76,29 +80,26 @@ function ChatApp() {
     setAppState((prev) => ({ ...prev, ...updates }))
   }
 
-  if (currentView === 'welcome') {
-    return (
-      <WelcomePage
-        onCreateChat={() => setCurrentView('chat')}
-        appState={appState}
-        updateState={updateState}
-      />
-    )
-  }
+  return <Outlet context={{ appState, updateState } satisfies PublicOutlet} />
+}
 
-  return (
-    <ChatDashboard
-      onBack={() => setCurrentView('welcome')}
-      appState={appState}
-      updateState={updateState}
-    />
-  )
+function WelcomeRoute() {
+  const { appState, updateState } = useOutletContext<PublicOutlet>()
+  return <WelcomePage appState={appState} updateState={updateState} />
+}
+
+function ChatRoute() {
+  const { appState, updateState } = useOutletContext<PublicOutlet>()
+  return <ChatDashboard appState={appState} updateState={updateState} />
 }
 
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<ChatApp />} />
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<WelcomeRoute />} />
+        <Route path="/chat" element={<ChatRoute />} />
+      </Route>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<RequireAdmin />}>

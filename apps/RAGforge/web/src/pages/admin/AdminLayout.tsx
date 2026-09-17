@@ -21,7 +21,7 @@ export function AdminLayout() {
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className="hidden text-muted-foreground lg:inline">{user?.email}</span>
-          <Button variant="outline" size="sm" onClick={() => navigate('/')}><MessageSquare className="h-4 w-4" /> Chat</Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/chat')}><MessageSquare className="h-4 w-4" /> Chat</Button>
           <Button
             variant="outline"
             size="sm"

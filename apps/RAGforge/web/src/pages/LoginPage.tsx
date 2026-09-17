@@ -83,7 +83,7 @@ export function LoginPage() {
           {!loading && <ArrowRight className="h-4 w-4" />}
         </Button>
       </form>
-      <Button variant="ghost" className="mt-5" onClick={() => navigate('/')}><ArrowLeft className="h-4 w-4" /> Back to chat</Button>
+      <Button variant="ghost" className="mt-5" onClick={() => navigate('/')}><ArrowLeft className="h-4 w-4" /> Back to home</Button>
     </div>
   )
 }

@@ -12,12 +12,11 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/Button'
 
 interface ChatDashboardProps {
-  onBack: () => void
   appState: AppState
   updateState: (updates: Partial<AppState>) => void
 }
 
-export function ChatDashboard({ onBack, appState, updateState }: ChatDashboardProps) {
+export function ChatDashboard({ appState, updateState }: ChatDashboardProps) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const toggleTheme = () => {
@@ -28,7 +27,7 @@ export function ChatDashboard({ onBack, appState, updateState }: ChatDashboardPr
     <div className="flex h-[100dvh] flex-col bg-background">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b bg-surface px-3 py-4 sm:px-6">
         <div className="flex items-center gap-2 sm:gap-4">
-          <Button variant="outline" size="sm" onClick={onBack} aria-label="Back to home" className="px-2 sm:px-3">
+          <Button variant="outline" size="sm" onClick={() => navigate('/')} aria-label="Back to home" className="px-2 sm:px-3">
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Back</span>
           </Button>

@@ -9,12 +9,11 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/Button'
 
 interface WelcomePageProps {
-  onCreateChat: () => void
   appState: AppState
   updateState: (updates: Partial<AppState>) => void
 }
 
-export function WelcomePage({ onCreateChat, appState, updateState }: WelcomePageProps) {
+export function WelcomePage({ appState, updateState }: WelcomePageProps) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const toggleTheme = () => {
@@ -68,7 +67,7 @@ export function WelcomePage({ onCreateChat, appState, updateState }: WelcomePage
             <p className="mt-6 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
               Turn your document collections into a conversation. Explore ideas, find information, and get answers with DiLLeMa.
             </p>
-            <Button onClick={onCreateChat} size="lg" className="mt-8">
+            <Button onClick={() => navigate('/chat')} size="lg" className="mt-8">
               Create New Chat <ArrowRight className="h-4 w-4" />
             </Button>
             <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
