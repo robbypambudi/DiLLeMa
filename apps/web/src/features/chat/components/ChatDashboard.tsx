@@ -8,6 +8,7 @@ import { useTheme } from '@/shared/hooks/useTheme'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { ChatInput } from '@/features/chat/components/ChatInput'
 import { ChatWindow } from '@/features/chat/components/ChatWindow'
+import { ChatHistory } from './ChatHistory'
 import { CollectionSelector } from '@/features/collections/components/CollectionSelector'
 import { ThemeToggle } from '@/shared/components/ThemeToggle'
 import { Button } from '@/shared/components/ui/Button'
@@ -15,7 +16,7 @@ import { Button } from '@/shared/components/ui/Button'
 export function ChatDashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const { state: appState, updateState } = useChat()
+  const { state: appState, newChat } = useChat()
   const { theme, toggleTheme } = useTheme()
 
   return (
@@ -67,10 +68,9 @@ export function ChatDashboard() {
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-        <CollectionSelector selectedCollection={appState.selectedCollection} disabled={appState.isLoading} onSelect={(collection) => updateState({
-          selectedCollection: collection,
-          messages: [{ role: 'assistant', content: 'Welcome. Ask a question about this collection to get started.' }],
-        })} />
+        <CollectionSelector selectedCollection={appState.selectedCollection} disabled={appState.isLoading || appState.isRestoring} onSelect={newChat}>
+          <ChatHistory />
+        </CollectionSelector>
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex shrink-0 items-center gap-3 border-b bg-surface px-5 py-3 sm:px-8">
@@ -80,7 +80,8 @@ export function ChatDashboard() {
               <p className="text-xs text-muted-foreground">{appState.selectedCollection ? 'Ask questions about this collection' : 'Choose a collection to get started'}</p>
             </div>
           </div>
-          <ChatWindow />
+          {appState.isRestoring ? <p role="status" className="flex-1 p-6 text-sm text-muted-foreground">Opening conversation…</p> : <ChatWindow />}
+          {appState.conversationId && !appState.selectedCollection && <p className="border-t px-5 py-3 text-sm text-muted-foreground">This collection is no longer available. You can still read or export this conversation.</p>}
           <ChatInput />
         </main>
       </div>

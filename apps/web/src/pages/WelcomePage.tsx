@@ -5,11 +5,13 @@ import logoDark from '../../assets/logo-dark.png'
 
 import { useTheme } from '@/shared/hooks/useTheme'
 import { useAuth } from '@/features/auth/hooks/useAuth'
+import { useChat } from '@/features/chat/hooks/useChat'
 import { ThemeToggle } from '@/shared/components/ThemeToggle'
 import { Button } from '@/shared/components/ui/Button'
 
 export function WelcomePage() {
   const { user, logout } = useAuth()
+  const { newChat } = useChat()
   const navigate = useNavigate()
   const { theme, toggleTheme } = useTheme()
 
@@ -60,7 +62,7 @@ export function WelcomePage() {
             <p className="mt-6 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
               Turn your document collections into a conversation. Explore ideas, find information, and get answers with DiLLeMa.
             </p>
-            <Button onClick={() => navigate('/chat')} size="lg" className="mt-8">
+            <Button onClick={() => { newChat(); navigate('/chat') }} size="lg" className="mt-8">
               Create New Chat <ArrowRight className="h-4 w-4" />
             </Button>
             <p className="mt-4 text-xs leading-relaxed text-muted-foreground">

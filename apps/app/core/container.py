@@ -5,11 +5,13 @@ from app.core.config import settings
 from app.core.database import Database
 from app.pipeline.pipeline_service import PipelineService
 from app.repositories import CollectionsRepository
+from app.repositories.conversations_repository import ConversationsRepository
 from app.repositories.files_repository import FilesRepository
 from app.repositories.questions_repository import QuestionsRepository
 from app.repositories.users_repository import UsersRepository
 from app.services.auth_service import AuthService
 from app.services.collection_service import CollectionsService
+from app.services.conversation_service import ConversationService
 from app.services.files_service import FilesService
 from app.services.knowledge_service import KnowledgeService
 from app.services.question_service import QuestionsService
@@ -29,6 +31,7 @@ class Container(containers.DeclarativeContainer):
             "app.api.v1.endpoints.auth",
             "app.api.v1.endpoints.questions",
             "app.api.v1.endpoints.collections",
+            "app.api.v1.endpoints.conversations",
             "app.api.v1.endpoints.files",
             "app.api.v1.endpoints.knowledge",
             "app.core.dependencies",
@@ -68,6 +71,12 @@ class Container(containers.DeclarativeContainer):
     questions_repository = providers.Factory(
         QuestionsRepository, session_factory=db.provided.session
     )
+    conversations_repository = providers.Factory(
+        ConversationsRepository, session_factory=db.provided.session
+    )
+    conversation_service = providers.Factory(
+        ConversationService, repository=conversations_repository
+    )
     users_repository = providers.Factory(
         UsersRepository, session_factory=db.provided.session
     )
@@ -105,6 +114,7 @@ class Container(containers.DeclarativeContainer):
     question_service = providers.Factory(
         QuestionsService,
         questions_repository=questions_repository,
+        conversations_repository=conversations_repository,
         collections_repository=collections_repository,
         qdrant_client=qdrant_client,
         augment_query_generator=augment_query_generator,

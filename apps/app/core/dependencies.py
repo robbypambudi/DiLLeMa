@@ -15,10 +15,14 @@ _bearer = HTTPBearer(auto_error=False)
 
 @inject
 def get_current_user(
-        credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-        users_repository: UsersRepository = Depends(Provide[Container.users_repository]),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    users_repository: UsersRepository = Depends(Provide[Container.users_repository]),
 ) -> Users:
-    if credentials is None or credentials.scheme.lower() != "bearer" or not credentials.credentials:
+    if (
+        credentials is None
+        or credentials.scheme.lower() != "bearer"
+        or not credentials.credentials
+    ):
         raise UnauthorizedError()
     payload = decode_access_token(credentials.credentials)
     sub = payload.get("sub")
@@ -39,3 +43,13 @@ def require_admin(user: Users = Depends(get_current_user)) -> Users:
     if user.role != UserRole.admin.value:
         raise AuthError(detail="Forbidden")
     return user
+
+
+@inject
+def get_optional_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    users_repository: UsersRepository = Depends(Provide[Container.users_repository]),
+) -> Users | None:
+    if credentials is None:
+        return None
+    return get_current_user(credentials=credentials, users_repository=users_repository)

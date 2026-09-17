@@ -25,9 +25,15 @@ UI, HTTP transport and utilities. Hooks own requests and state so UI components
 remain focused on rendering and user interaction.
 
 Chat and collection browsing are public. Administrative routes require a signed-in
-admin. Authentication uses session storage; conversation state is held by the
-chat provider and clears when leaving the public layout. Theme state is shared
-for the current page session.
+admin. Authentication uses session storage. Signed-in chat history is saved to
+the user's account in PostgreSQL; guest history is saved in this browser's local
+storage. The chat sidebar supports new chats, reopening history and deletion,
+and restores the active conversation after refresh. Guest chats stay separate
+from account history. Theme state is shared for the current page session.
+
+Before running the updated backend, apply the chat history migration from `apps`:
+`.venv/bin/python -m alembic upgrade head`. Previously unsaved conversations cannot
+be recovered.
 
 Read the [development guide](../../docs/DASHBOARD_DEVELOPMENT.md) before adding
 features or changing module boundaries. Existing endpoint URLs and response

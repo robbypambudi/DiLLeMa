@@ -14,6 +14,7 @@ class BaseQuestion(BaseModel):
 class CreateQuestion(BaseQuestion):
     collection_id: uuid.UUID
     using_augment_query: bool = False
+    conversation_id: uuid.UUID | None = None
 
 
 class QuestionResponse(BaseModel):

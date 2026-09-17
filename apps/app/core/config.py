@@ -72,6 +72,8 @@ class Settings(BaseSettings):
 
     QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
+    EMBED_MODEL_NAME: str = "intfloat/multilingual-e5-base"
+    RERANK_MODEL_NAME: str = "BAAI/bge-reranker-v2-m3"
 
     KG_ENABLED: bool = False
     KG_LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")

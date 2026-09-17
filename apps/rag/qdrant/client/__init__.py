@@ -1,7 +1,25 @@
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, FieldCondition, Filter, MatchValue, PayloadSchemaType, PointStruct, VectorParams
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    Fusion,
+    FusionQuery,
+    MatchValue,
+    Modifier,
+    PayloadSchemaType,
+    PointStruct,
+    Prefetch,
+    SparseVectorParams,
+    VectorParams,
+)
 from loguru import logger
 from uuid import NAMESPACE_URL, uuid5
+
+from rag.embedding.sparse_bm25 import encode_sparse
+
+DENSE_NAME = "dense"
+SPARSE_NAME = "bm25"
 
 
 class QdrantHttpClient:
@@ -11,20 +29,40 @@ class QdrantHttpClient:
         self.port = port
         self.client = QdrantClient(host=self.host, port=self.port)
 
-    def create_collection(self, collection_name: str, embedding_function=None, metadata=None):
+    def _layout(self, collection_name: str) -> str:
+        info = self.client.get_collection(collection_name)
+        vectors = info.config.params.vectors
+        sparse = info.config.params.sparse_vectors or {}
+        named_dense = isinstance(vectors, dict) and DENSE_NAME in vectors
+        if named_dense and SPARSE_NAME in sparse:
+            return "hybrid"
+        if named_dense:
+            return "named-dense"
+        return "unnamed"
+
+    def create_collection(
+        self,
+        collection_name: str,
+        embedding_function=None,
+        metadata=None,
+        vector_size: int | None = None,
+    ):
         try:
-            # Check if collection already exists
             collections = self.client.get_collections()
             existing_names = [col.name for col in collections.collections]
-            
+            size = vector_size or 768
             if collection_name in existing_names:
-                logger.info(f"Collection '{collection_name}' already exists")
+                logger.info("Collection '{}' already exists ({})", collection_name, self._layout(collection_name))
                 return collection_name
-            
-            vector_size = 768  # Default for sentence-transformers/all-mpnet-base-v2
+
             self.client.create_collection(
                 collection_name=collection_name,
-                vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+                vectors_config={
+                    DENSE_NAME: VectorParams(size=size, distance=Distance.COSINE),
+                },
+                sparse_vectors_config={
+                    SPARSE_NAME: SparseVectorParams(modifier=Modifier.IDF),
+                },
             )
             try:
                 self.client.create_payload_index(
@@ -33,63 +71,119 @@ class QdrantHttpClient:
                     field_schema=PayloadSchemaType.KEYWORD,
                 )
             except Exception as index_error:
-                logger.warning(f"Could not create file_id payload index on '{collection_name}': {index_error}")
-            logger.info(f"Created collection '{collection_name}'")
+                logger.warning(
+                    "Could not create file_id payload index on '{}': {}",
+                    collection_name,
+                    index_error,
+                )
+            logger.info("Created hybrid collection '{}'", collection_name)
             return collection_name
         except Exception as e:
-            logger.error(f"Error creating collection '{collection_name}': {e}")
+            logger.error("Error creating collection '{}': {}", collection_name, e)
             raise
 
-    def add_documents(self, collection_name: str, ids: list, documents: list, metadatas: list = None,
-                      embedding_function=None):
+    def add_documents(
+        self,
+        collection_name: str,
+        ids: list,
+        documents: list,
+        metadatas: list = None,
+        embedding_function=None,
+    ):
         if not embedding_function:
             logger.error("Embedding function is required for Qdrant")
             raise ValueError("Embedding function is required for Qdrant")
-        
+
         try:
             embeddings = embedding_function(documents)
+            layout = self._layout(collection_name)
             points = []
-            
             for i, (doc_id, doc, embedding) in enumerate(zip(ids, documents, embeddings)):
                 payload = {"document": doc}
                 if metadatas and i < len(metadatas):
                     payload.update(metadatas[i])
-                
-                # Stable across interpreter restarts and retries.
                 numeric_id = str(uuid5(NAMESPACE_URL, f"{collection_name}:{doc_id}"))
-                
-                points.append(PointStruct(
-                    id=numeric_id,
-                    vector=embedding.tolist() if hasattr(embedding, 'tolist') else embedding,
-                    payload=payload
-                ))
-            
+                dense = embedding.tolist() if hasattr(embedding, "tolist") else embedding
+                if layout == "hybrid":
+                    vector = {DENSE_NAME: dense, SPARSE_NAME: encode_sparse(doc)}
+                elif layout == "named-dense":
+                    vector = {DENSE_NAME: dense}
+                else:
+                    vector = dense
+                points.append(PointStruct(id=numeric_id, vector=vector, payload=payload))
+
             self.client.upsert(collection_name=collection_name, points=points)
-            logger.info(f"Added {len(documents)} documents to '{collection_name}'.")
+            logger.info("Added {} documents to '{}' ({})", len(documents), collection_name, layout)
         except Exception as e:
-            logger.error(f"Error adding documents to Qdrant: {e}")
+            logger.error("Error adding documents to Qdrant: {}", e)
             raise
 
+    def search(
+        self,
+        collection_name: str,
+        query_vector,
+        limit: int = 20,
+        query_text: str | None = None,
+    ):
+        """Dense search, or dense+BM25 RRF when the collection is hybrid."""
+        try:
+            layout = self._layout(collection_name)
+        except Exception:
+            layout = "unnamed"
+        dense = query_vector.tolist() if hasattr(query_vector, "tolist") else query_vector
+        try:
+            if layout == "hybrid" and query_text:
+                result = self.client.query_points(
+                    collection_name=collection_name,
+                    prefetch=[
+                        Prefetch(query=dense, using=DENSE_NAME, limit=limit),
+                        Prefetch(
+                            query=encode_sparse(query_text),
+                            using=SPARSE_NAME,
+                            limit=limit,
+                        ),
+                    ],
+                    query=FusionQuery(fusion=Fusion.RRF),
+                    limit=limit,
+                )
+                return list(result.points)
+            kwargs = {
+                "collection_name": collection_name,
+                "query": dense,
+                "limit": limit,
+            }
+            if layout in {"hybrid", "named-dense"}:
+                kwargs["using"] = DENSE_NAME
+            return list(self.client.query_points(**kwargs).points)
+        except Exception as exc:
+            logger.warning("query_points failed ({}); falling back to search", type(exc).__name__)
+            if layout in {"hybrid", "named-dense"}:
+                return self.client.search(
+                    collection_name=collection_name,
+                    query_vector=dense,
+                    using=DENSE_NAME,
+                    limit=limit,
+                )
+            return self.client.search(
+                collection_name=collection_name,
+                query_vector=dense,
+                limit=limit,
+            )
+
     def query(self, collection_name: str, query_texts: list, n_results: int = 3, include: list = None):
-        # For Qdrant, we need embeddings for the query
-        # This assumes embedding function is available in the calling context
         results = {"documents": [], "metadatas": [], "distances": []}
-        
         for query_text in query_texts:
             search_result = self.client.search(
                 collection_name=collection_name,
-                query_vector=None,  # Will be set by caller with embeddings
-                limit=n_results
+                query_vector=None,
+                limit=n_results,
             )
-            
             docs = [hit.payload.get("document", "") for hit in search_result]
             metas = [{k: v for k, v in hit.payload.items() if k != "document"} for hit in search_result]
             distances = [hit.score for hit in search_result]
-            
             results["documents"].append(docs)
             results["metadatas"].append(metas)
             results["distances"].append(distances)
-        
         return results
 
     def delete_collection(self, collection_name: str):
@@ -125,11 +219,13 @@ class QdrantHttpClient:
         try:
             result = self.client.scroll(collection_name=collection_name, limit=10000)
             points = result[0]
-            
             return {
                 "ids": [str(point.id) for point in points],
                 "documents": [point.payload.get("document", "") for point in points],
-                "metadatas": [{k: v for k, v in point.payload.items() if k != "document"} for point in points]
+                "metadatas": [
+                    {k: v for k, v in point.payload.items() if k != "document"}
+                    for point in points
+                ],
             }
         except Exception as e:
             logger.error(f"Error getting documents from Qdrant: {e}")

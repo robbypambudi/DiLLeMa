@@ -15,7 +15,7 @@ export function ChatWindow() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  if (!selectedCollection) {
+  if (!selectedCollection && messages.length === 0) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-5 sm:p-8">
         <div className="my-auto max-w-md text-center">
@@ -53,10 +53,12 @@ export function ChatWindow() {
                 message.content ? (
                   <div>
                     <HtmlRenderer content={message.content} />
-                    {isLoading && index === messages.length - 1 && (
+                    {(isLoading || message.status === 'pending') && index === messages.length - 1 && (
                       <span className="ml-0.5 inline-block h-4 w-1 translate-y-0.5 animate-pulse bg-current" aria-hidden />
                     )}
                   </div>
+                ) : message.status === 'interrupted' || message.status === 'failed' ? (
+                  <p className="text-muted-foreground">{message.status === 'failed' ? 'The answer could not be generated.' : 'The answer was interrupted.'}</p>
                 ) : (
                   <div role="status" className="flex items-center space-x-2 text-muted-foreground">
                     <div className="flex space-x-1">
@@ -71,6 +73,10 @@ export function ChatWindow() {
                 <div className="whitespace-pre-wrap">{message.content}</div>
               )}
             </div>
+
+            {message.role === 'assistant' && message.content && (message.status === 'interrupted' || message.status === 'failed') && (
+              <p className="mt-1 text-xs text-muted-foreground">{message.status === 'interrupted' ? 'Generation was interrupted. This is a partial answer.' : 'Generation failed. You can send the question again.'}</p>
+            )}
 
             {message.role === 'assistant' && (
               <div className="mt-2 flex gap-1">

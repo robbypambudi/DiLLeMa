@@ -83,7 +83,10 @@ class CollectionsService(BaseService):
             )
         )
         try:
-            self.qdrant_client.create_collection(collection_name=collection.vectordb_collection_name)
+            self.qdrant_client.create_collection(
+                collection_name=collection.vectordb_collection_name,
+                vector_size=getattr(self.embedding_model, "vector_size", None),
+            )
             return collection
         except Exception as e:
             self.collections_repository.delete_by_id(collection.id)

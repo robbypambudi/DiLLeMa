@@ -32,12 +32,10 @@ class RetrievalService:
 
     @cached_property
     def embedding_model(self):
-        from sentence_transformers import SentenceTransformer
+        from rag.embedding.default_embedding import DefaultEmbedding
         from rag.embedding.device import embedding_device
 
-        return SentenceTransformer(
-            "sentence-transformers/all-mpnet-base-v2", device=embedding_device()
-        )
+        return DefaultEmbedding(device=embedding_device())
 
     @cached_property
     def re_ranking(self):
@@ -62,10 +60,13 @@ class RetrievalService:
         seed_file_ids = set()
         for query in queries:
             query_embedding = self.embedding_model.encode(query)
-            search_result = self.qdrant_client.client.search(
+            if hasattr(query_embedding, "ndim") and query_embedding.ndim > 1:
+                query_embedding = query_embedding[0]
+            search_result = self.qdrant_client.search(
                 collection_name=collection.vectordb_collection_name,
-                query_vector=query_embedding.tolist(),
-                limit=10,
+                query_vector=query_embedding,
+                query_text=query,
+                limit=20,
             )
             for hit in search_result:
                 metadata = hit.payload or {}
@@ -119,6 +120,4 @@ class RetrievalService:
         pairs = list(candidates.values())
         if not pairs:
             return []
-        if using_augment_query or graph_used:
-            return self.re_ranking.rank(pairs=pairs, top_results=6 if graph_used else 3)
-        return pairs
+        return self.re_ranking.rank(pairs=pairs, top_results=6 if graph_used else 5)

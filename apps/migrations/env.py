@@ -7,7 +7,7 @@ from sqlalchemy import pool
 from sqlmodel import SQLModel
 
 from app.core.config import settings
-from app.models import collections, files, questions, users  # noqa: F401
+from app.models import collections, conversations, files, questions, users  # noqa: F401
 from knowledge import tables  # noqa: F401
 
 cmd_kwargs = context.get_x_argument(as_dictionary=True)

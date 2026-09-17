@@ -2,21 +2,23 @@ import { BookOpen, Check, FolderOpen, Loader2 } from 'lucide-react'
 import { Button } from '@/shared/components/ui/Button'
 import { useCollectionList } from '../hooks/useCollectionList'
 import type { Collection } from '../types'
+import type { ReactNode } from 'react'
 
 interface CollectionSelectorProps {
   selectedCollection: Collection | null
   disabled: boolean
   onSelect: (collection: Collection) => void
+  children?: ReactNode
 }
 
-export function CollectionSelector({ selectedCollection, disabled, onSelect }: CollectionSelectorProps) {
+export function CollectionSelector({ selectedCollection, disabled, onSelect, children }: CollectionSelectorProps) {
   const { rows: collections, loading, error, load } = useCollectionList()
   const handleCollectionChange = (collection: Collection) => {
     if (!disabled && selectedCollection?.id !== collection.id) onSelect(collection)
   }
 
   return (
-    <aside className="flex shrink-0 flex-col border-b bg-surface p-4 md:w-72 md:border-b-0 md:border-r md:p-5 lg:w-80" aria-label="Document collections">
+    <aside className="flex shrink-0 flex-col overflow-y-auto border-b bg-surface p-4 md:w-72 md:border-b-0 md:border-r md:p-5 lg:w-80" aria-label="Document collections">
       <div className="mb-4 hidden items-center justify-between md:flex">
         <h2 className="flex items-center gap-2 text-sm font-semibold"><BookOpen className="h-4 w-4 text-primary" /> Collections</h2>
         <span className="rounded-md border bg-secondary px-2 py-0.5 text-xs text-muted-foreground">{collections.length}</span>
@@ -46,7 +48,7 @@ export function CollectionSelector({ selectedCollection, disabled, onSelect }: C
               {collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.collection_name}</option>)}
             </select>
           </div>
-          <div className="hidden min-h-0 space-y-2 overflow-y-auto md:block">
+          <div className="hidden max-h-[30vh] min-h-0 space-y-2 overflow-y-auto md:block">
             {collections.map((collection) => {
               const selected = selectedCollection?.id === collection.id
               return (
@@ -64,6 +66,7 @@ export function CollectionSelector({ selectedCollection, disabled, onSelect }: C
           </div>
         </>
       )}
+      {children}
       <div className="mt-auto hidden pt-6 md:block">
         <p className="border-t pt-4 text-xs leading-relaxed text-muted-foreground">Each conversation is focused on your selected collection.</p>
       </div>

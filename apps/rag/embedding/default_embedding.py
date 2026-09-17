@@ -1,29 +1,51 @@
+import os
 from typing import List
 
 import numpy as np
 from loguru import logger
 from sentence_transformers import SentenceTransformer
+
 from rag.embedding import BaseEmbeddingModel
+
+DEFAULT_EMBED_MODEL = os.getenv(
+    "EMBED_MODEL_NAME", "intfloat/multilingual-e5-base"
+)
 
 
 class DefaultEmbedding(BaseEmbeddingModel):
-    def __init__(self, device: str = 'cpu'):
-        # Initialize the SentenceTransformer model
-        logger.info('Initializing default embedding model')
-        self.model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2", device=device)
+    """Retrieval embedder. E5 models require query:/passage: prefixes and L2 norm."""
 
-    def __call__(self, input: List[str]) -> np.ndarray:
-        # Encode texts into vectors
-        if isinstance(input, str):
-            return self.encode(input)
-        return self.encode_queries(input)
+    def __init__(self, device: str = "cpu", model_name: str | None = None):
+        self.model_name = model_name or DEFAULT_EMBED_MODEL
+        logger.info("Initializing embedding model {}", self.model_name)
+        self.model = SentenceTransformer(self.model_name, device=device)
+        self.uses_e5_prefix = "e5" in self.model_name.lower()
 
-    def encode(self, text: str) -> np.ndarray:
-        # Encode a single text into a vector
-        vector = self.model.encode(text, convert_to_numpy=True)
+    @property
+    def vector_size(self) -> int:
+        return int(self.model.get_sentence_embedding_dimension())
+
+    def _prefix(self, texts: str | List[str], kind: str) -> str | List[str]:
+        if not self.uses_e5_prefix:
+            return texts
+        tag = "query: " if kind == "query" else "passage: "
+        if isinstance(texts, str):
+            return texts if texts.startswith(tag) else tag + texts
+        return [text if text.startswith(tag) else tag + text for text in texts]
+
+    def encode(self, text: str | List[str]) -> np.ndarray:
+        """String queries use the query prefix; lists of chunks use passage."""
+        kind = "passage" if isinstance(text, (list, tuple)) else "query"
+        vector = self.model.encode(
+            self._prefix(text, kind),
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+        )
         return vector
 
     def encode_queries(self, texts: List[str]) -> np.ndarray:
-        # Encode multiple texts into a 2D array of vectors
-        vectors = self.model.encode(texts, convert_to_numpy=True)
-        return vectors
+        return self.model.encode(
+            self._prefix(texts, "query"),
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+        )

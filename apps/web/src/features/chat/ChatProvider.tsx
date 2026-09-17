@@ -1,16 +1,15 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { useAuth } from '@/features/auth/hooks/useAuth'
 import { ChatContext } from './context'
-import type { ChatState } from './types'
+import { useChatSession } from './hooks/useChatSession'
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<ChatState>({
-    selectedCollection: null,
-    messages: [{ role: 'assistant', content: 'Welcome. Select a collection and ask a question.' }],
-    isLoading: false,
-  })
-  const updateState = useCallback((updates: Partial<ChatState>) => {
-    setState((previous) => ({ ...previous, ...updates }))
-  }, [])
-  const value = useMemo(() => ({ state, updateState }), [state, updateState])
+  const { user, ready } = useAuth()
+  // A login/logout replaces the provider so requests and state never cross owners.
+  return <ChatSessionProvider key={ready ? user?.id ?? 'guest' : 'loading'} userId={user?.id ?? null} ready={ready}>{children}</ChatSessionProvider>
+}
+
+function ChatSessionProvider({ children, userId, ready }: { children: ReactNode; userId: string | null; ready: boolean }) {
+  const value = useChatSession(userId, ready)
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>
 }

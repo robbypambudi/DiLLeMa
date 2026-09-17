@@ -1,9 +1,6 @@
 import { createContext } from 'react'
-import type { ChatState } from './types'
+import type { useChatSession } from './hooks/useChatSession'
 
-export interface ChatContextValue {
-  state: ChatState
-  updateState: (updates: Partial<ChatState>) => void
-}
+export type ChatContextValue = ReturnType<typeof useChatSession>
 
 export const ChatContext = createContext<ChatContextValue | null>(null)

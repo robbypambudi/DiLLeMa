@@ -106,7 +106,7 @@ class QuestionIntegrationTests(unittest.TestCase):
             vectordb_collection_name="pilot"
         )
         self.vectors = Mock()
-        self.vectors.client.search.return_value = [
+        self.vectors.search.return_value = [
             SimpleNamespace(
                 id=1,
                 score=0.9,
@@ -117,6 +117,7 @@ class QuestionIntegrationTests(unittest.TestCase):
                 },
             )
         ]
+        self.vectors.client.search.return_value = self.vectors.search.return_value
         self.embedding = Mock()
         self.embedding.encode.return_value = SimpleNamespace(tolist=lambda: [0.1])
         self.reranker = Mock()
@@ -192,6 +193,7 @@ class QuestionIntegrationTests(unittest.TestCase):
     def test_empty_retrieval_does_not_call_generation(self):
         from app.core.config import settings
 
+        self.vectors.search.return_value = []
         self.vectors.client.search.return_value = []
         with patch.object(settings, "KG_ENABLED", False):
             result = self.service.question_no_stream(self.payload)

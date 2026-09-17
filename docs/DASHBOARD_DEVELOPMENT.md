@@ -49,8 +49,9 @@ Development rules:
   assistant output and escape user text. SSE events can span packets and contain
   multiple `data:` lines; the shared decoder preserves their line breaks.
 - Treat chat responses as deltas. The backend normalizes model snapshots; a
-  repeated frontend token is valid content. Chat state is in memory, auth is in
-  session storage, and the theme is shared for the current page session.
+  repeated frontend token is valid content. The chat session hook coordinates
+  database history for authenticated users and local storage for guests. Auth
+  is in session storage, and the theme is shared for the current page session.
 
 ESLint enforces TypeScript imports, hook dependencies, Fast Refresh boundaries,
 shared-module dependency boundaries and central use of `fetch`.
@@ -67,7 +68,55 @@ npm run typecheck   # TypeScript only
 Frontend regression tests compile production TypeScript with the existing Vite
 toolchain into ignored `.test-build/` artifacts, then use Node's test runner.
 They exercise HTTP authentication/error handling and SSE packet boundaries,
-Unicode, multiline content and reader cancellation.
+Unicode, multiline content, reader cancellation and history restoration/storage.
+
+## Chat history
+
+`features/chat/hooks/useChatSession.ts` owns chat creation, streaming, restoration,
+history pagination and deletion. `lib/history.ts` maps persisted turns to display
+messages; `lib/historyStorage.ts` handles validated guest storage and active-chat
+IDs. `ChatHistory` renders the conversation list inside the collection sidebar.
+
+- Signed-in chats belong to the authenticated user and are stored in PostgreSQL.
+  Each API operation checks ownership; admin status does not grant access to
+  another user's conversations. Signing in or out remounts the chat session,
+  aborts outstanding requests and isolates account state.
+- Guest chats use the browser's `dillema:guest-conversations:v1` local storage key.
+  Reloading restores saved messages, including partial answers. Browser data
+  removal also removes guest history. Storage errors are shown without silently
+  overwriting unreadable history. Guest chats are not imported into an account.
+- New chat and collection selection create a fresh conversation. Opening history
+  restores its collection and ordered messages; the selected conversation is
+  remembered separately for each account and for guests.
+- `conversations` stores owner, collection snapshot, title and UTC timestamps.
+  `conversation_turns` stores ordered question/answer pairs with `pending`,
+  `completed`, `failed` or `interrupted` status. A question is committed before
+  generation starts. Completion, generation errors and client disconnects save
+  the result. After a server crash, pending turns older than ten minutes become
+  interrupted when reopened or when the next question is submitted.
+- Deleting a conversation removes its turns. Deleting a collection retains the
+  conversation for reading/export, with its collection ID set to null.
+- Legacy `questions` records have no owner or conversation identifier and are not
+  assigned to accounts. History saved from this feature onward can be restored;
+  earlier in-memory chat sessions cannot be recovered. Generation continues to
+  retrieve evidence for each question; saved turns are not additional LLM context.
+
+The authenticated endpoints are `GET/POST /api/v1/conversations` and
+`GET/DELETE /api/v1/conversations/{id}`. Lists accept `offset` and `limit` (1–100).
+Both question endpoints accept an optional `conversation_id` form field; requests
+that include it require its owner to be signed in. Requests without it retain
+the public, legacy question behavior. Ownership/conflict errors are returned
+before SSE starts.
+
+Apply the additive migration before starting the updated backend:
+
+```bash
+cd apps
+.venv/bin/python -m alembic upgrade head
+```
+
+Revision `c3d4e5f6a702` adds the two history tables without changing existing data.
+Ensure the Alembic database URL matches the application database in your environment.
 
 ## Backend structure
 
@@ -124,6 +173,11 @@ The suite uses SQLite and fake model/service boundaries. PostgreSQL concurrency
 tests run only when `KG_TEST_DATABASE_URL` points to a disposable test database;
 otherwise they are reported as skipped. Live model and browser end-to-end checks
 remain separate from these offline regression tests.
+
+History ownership, persistence, migration and cancellation tests run in the
+offline suite. Set `CHAT_TEST_DATABASE_URL` to a disposable PostgreSQL database
+to additionally run `test_conversations_postgres.py`; each test migrates and cleans
+up its own random schema and checks concurrent submissions and deletion.
 
 The unused legacy collection modals and `app/controllers` implementation were
 removed. Collection administration uses the feature pages, and backend routes
