@@ -1,0 +1,10 @@
+# Fictional knowledge extraction pilot
+
+Program A dikelola Organisasi B.
+Mahasiswa reguler wajib sudah lulus minimal 80 SKS untuk mengikuti Program A.
+Ketentuan 80 SKS tersebut berlaku mulai tahun 2026.
+
+Program C dikelola Organisasi B.
+Program C memiliki prosedur Pengajuan C.
+
+Dokumen ini sepenuhnya fiktif untuk pengujian DiLLeMa v2, bukan aturan institusi nyata.

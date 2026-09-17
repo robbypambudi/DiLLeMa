@@ -1,0 +1,90 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.env
+.venv/
+venv/
+env/
+Pipfile
+Pipfile.lock
+poetry.lock
+/chatbot
+
+# Log & Debug
+*.log
+*.out
+*.err
+
+# IDE/Editor
+.vscode/
+.idea/
+*.iml
+
+# Testing
+.tox/
+.nox/
+.coverage
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Build
+build/
+dist/
+*.egg-info/
+*.egg
+/web/node_modules
+
+# Packaging
+.DS_Store
+*.tar.gz
+*.zip
+
+# Virtualenv
+*.venv/
+.env/
+
+# Secrets
+.env
+*.key
+*.pem
+
+# Documentation
+docs/_build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# MyPy
+.mypy_cache/
+
+# Black
+*.bak
+
+# Linting
+.pyre/
+.pytype/
+
+# VSCode Workspace Settings
+.vscode/
+
+# Alembic
+alembic.ini
+
+# Frontend
+node_modules
+/web/dist/
+/web/.vite/
+
+# Local vector databases (not rag/chroma Python client)
+/chroma/
+/chromadb/
+qdrant_storage/
+
+# Downloaded installers and local caches
+*.deb
+.cache/

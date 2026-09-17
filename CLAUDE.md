@@ -69,13 +69,13 @@ These are research/benchmarking artifacts, **not** part of the shipped package (
 
 - `evaluation/` — standalone multi-node deployment + benchmark scripts (`ray_model_deployer.py`, `ray_model_evaluator.py`, VPN/dual-node setup shells). See `evaluation/README.txt`. Note: an `.pem` private key is checked in here — do not add more secrets.
 - `analysis/` — Ray/vLLM experiment notebook and scratch scripts.
-- `apps/RAGforge/` — a vendored RAG application (see its own section below); it lives directly in this repo, not as a submodule.
+- `apps/` — the DiLLeMa dashboard (FastAPI + web + knowledge graph); it lives directly in this repo as a separate project, not as a submodule.
 
-## apps/RAGforge (vendored app)
+## apps/ (dashboard)
 
-A **self-contained RAG application** (`rag-template`, originally from `https://github.com/robbypambudi/RAGforge.git`), vendored into this repo with its own `pyproject.toml`, `uv.lock`, and `.env`. It is the *consumer* side: a Retrieval-Augmented Generation app that talks to an OpenAI-compatible LLM endpoint (via `langchain-openai` `ChatOpenAI`) — the same kind of endpoint `dillema serve` exposes.
+A **self-contained RAG dashboard** (`rag-template` package metadata, originally from `https://github.com/robbypambudi/RAGforge.git`), vendored into this repo with its own `pyproject.toml`, `uv.lock`, and `.env`. It is the *consumer* side: a Retrieval-Augmented Generation app that talks to an OpenAI-compatible LLM endpoint (via `langchain-openai` `ChatOpenAI`) — the same kind of endpoint `dillema serve` exposes.
 
-It was previously a git submodule; it is now a plain directory, so edits are tracked directly by this repo and no longer sync with the upstream RAGforge repo. It has its own toolchain (`uv`, Ruff) and is excluded from both the DiLLeMa Python package build and the `Dockerfile` image.
+It was previously a git submodule; it is now a plain directory at `apps/`, so edits are tracked directly by this repo and no longer sync with the upstream RAGforge repo. It has its own toolchain (`uv`, Ruff) and is excluded from both the DiLLeMa Python package build and the `Dockerfile` image.
 
 ### Stack & services
 
@@ -83,7 +83,7 @@ It was previously a git submodule; it is now a plain directory, so edits are tra
 - **Frontend:** React + TypeScript + Vite + Tailwind in `web/` (port 3000).
 - **Infra:** `docker-compose.yml` brings up Postgres (5432) and Qdrant (6333/6334).
 
-### Running it (from `apps/RAGforge/`)
+### Running it (from `apps/`)
 
 ```bash
 cp .env.example .env

@@ -200,7 +200,7 @@
     }
   ],
   "executed_on": "2026-09-17",
-  "fixture": "apps/RAGforge/knowledge/examples/pilot.txt",
+  "fixture": "apps/knowledge/examples/pilot.txt",
   "scope": "fictional live-model smoke; no application database writes",
   "semantic_review_required": true
 }

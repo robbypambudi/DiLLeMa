@@ -1,10 +1,10 @@
 # DiLLeMa v2 pilot — setup and operation
 
-The pilot adds reviewed knowledge extraction to RAGforge. It requires the existing PostgreSQL/Qdrant application environment and an inference endpoint. There is no new mandatory Python dependency and no mandatory Neo4j service in this slice.
+The pilot adds reviewed knowledge extraction to the DiLLeMa dashboard in `apps/`. It requires the existing PostgreSQL/Qdrant application environment and an inference endpoint. There is no new mandatory Python dependency and no mandatory Neo4j service in this slice.
 
 ## 1. Configure and migrate
 
-From `apps/RAGforge`, use the existing `.venv` or synchronize the app environment with `uv sync`. The root DiLLeMa environment serves models; the app environment runs RAGforge and the extraction worker.
+From `apps/`, use the existing `.venv` or synchronize the app environment with `uv sync`. The root DiLLeMa environment serves models; the app environment runs the dashboard and the extraction worker.
 
 Ensure `.env` contains the existing PostgreSQL connection values and LLM settings. New optional settings:
 
@@ -65,7 +65,7 @@ Chat combines existing vector evidence with approved graph claims from that coll
 
 `merge_by_name` controls exact-name linking across documents. Default `[]` scopes identities to each file. For a domain where program/organization names are unique, explicitly set `["Program", "Organization"]`. People cannot opt into this name-only merge. Aliases must appear in the source and can seed retrieval; fuzzy matching and entity merge/split review are future work.
 
-Example materials in `apps/RAGforge/knowledge/examples` are fictional and intended only for a local smoke test. Expected real-model output should be inspected; the model is not guaranteed to reproduce the fixture's wording.
+Example materials in `apps/knowledge/examples` are fictional and intended only for a local smoke test. Expected real-model output should be inspected; the model is not guaranteed to reproduce the fixture's wording.
 
 For the example, paste `academic-profile.json` into the collection's schema editor, save, upload `pilot.txt`, and run the worker. Inspect the extracted `MANAGED_BY`, `REQUIRES`, and `HAS_PROCEDURE` claims and their qualifiers before approving them.
 
@@ -103,7 +103,7 @@ The latest local run passed 44 tests and skipped 23 opt-in PostgreSQL tests. The
 
 ## 7. Repeat the live-model smoke test
 
-From `apps/RAGforge`:
+From `apps/`:
 
 ```bash
 .venv/bin/python -m knowledge.smoke --output /tmp/dillema-v2-smoke.json
@@ -120,9 +120,9 @@ For a separate document, use `--source path/to/document.pdf --profile path/to/pr
 From repository root, with access to Docker Compose:
 
 ```bash
-docker compose -p dillema-kg-tests -f apps/RAGforge/tests/compose.knowledge.yml up -d --wait
-KG_TEST_DATABASE_URL=postgresql+psycopg2://kg_test:kg_test_local_only@127.0.0.1:55439/kg_test PYTHONPATH=apps/RAGforge apps/RAGforge/.venv/bin/python -m unittest discover -s apps/RAGforge/tests -p test_knowledge_postgres.py -v
-docker compose -p dillema-kg-tests -f apps/RAGforge/tests/compose.knowledge.yml down
+docker compose -p dillema-kg-tests -f apps/tests/compose.knowledge.yml up -d --wait
+KG_TEST_DATABASE_URL=postgresql+psycopg2://kg_test:kg_test_local_only@127.0.0.1:55439/kg_test PYTHONPATH=apps apps/.venv/bin/python -m unittest discover -s apps/tests -p test_knowledge_postgres.py -v
+docker compose -p dillema-kg-tests -f apps/tests/compose.knowledge.yml down
 ```
 
 Run the final cleanup command even when tests fail. The dedicated service binds localhost and stores data in tmpfs; its static credentials are test-only. Use a separate Compose project and an unused port when running multiple suites simultaneously. The test URL is explicit and never falls back to application settings. Each test creates, migrates, and drops its own random `kg_test_*` schema; do not point it at the production database.

@@ -6,7 +6,7 @@ DiLLeMa is a distributed Large Language Model (LLM) serving system that provides
 
 ## Features
 
-An opt-in Knowledge Graph pilot for DiLLeMa v2 is available in RAGforge. See the
+An opt-in Knowledge Graph pilot for DiLLeMa v2 is available in `apps/`. See the
 [implementation plan and agent handoff](docs/DILLEMA_V2_PLAN.md),
 [setup/runbook](docs/DILLEMA_V2_RUNBOOK.md),
 [validation findings](docs/DILLEMA_V2_VALIDATION.md), and

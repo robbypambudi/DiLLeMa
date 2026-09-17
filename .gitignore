@@ -70,3 +70,12 @@ docs/_build/
 
 # VSCode Workspace Settings
 .vscode/
+
+# Dashboard local data (vector stores, installers, frontend build)
+apps/chroma/
+apps/chromadb/
+apps/qdrant_storage/
+apps/*.deb
+apps/web/dist/
+apps/web/node_modules/
+apps/web/.vite/

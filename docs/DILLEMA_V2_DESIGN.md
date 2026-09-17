@@ -17,7 +17,7 @@ Knowledge Graph berfungsi menghubungkan informasi dan menemukan bukti. Jalur ant
 | Area | Kondisi yang ditemukan | Perubahan v2 |
 | --- | --- | --- |
 | Serving | `dillema/serve/llm.py` menjalankan LLM lewat Ray Serve/vLLM. | Sediakan konfigurasi terpisah untuk model ekstraksi dan model jawaban; keduanya boleh memakai deployment yang sama pada pilot. |
-| Ingestion | `apps/RAGforge/app/pipeline/pipeline_service.py` membaca teks lalu langsung memotong dan mengindeksnya. PDF kehilangan identitas halaman dalam representasi yang diteruskan. | Tambahkan representasi dokumen terstruktur, versi, bukti, dan tahap ekstraksi yang dapat diulang. |
+| Ingestion | `apps/app/pipeline/pipeline_service.py` membaca teks lalu langsung memotong dan mengindeksnya. PDF kehilangan identitas halaman dalam representasi yang diteruskan. | Tambahkan representasi dokumen terstruktur, versi, bukti, dan tahap ekstraksi yang dapat diulang. |
 | Pekerjaan latar | Endpoint upload menggunakan FastAPI `BackgroundTasks`. | Jadikan status pekerjaan persisten dengan retry, checkpoint, lease, dan worker terpisah dari request API. |
 | Retrieval | `question_service.py` mencari vektor, mengambil teks payload, lalu rerank jika augmentasi aktif. | Pertahankan ID, skor, metadata, dan sumber; gabungkan pencarian dense, lexical, dan graph. |
 | Graph | Belum ada penyimpanan graph atau skema entitas/relasi pada jalur aplikasi. | Tambahkan model pengetahuan kanonis dan proyeksi graph. |
@@ -157,7 +157,7 @@ Perubahan file memicu parsing/ekstraksi versi baru. Perubahan prompt, skema, par
 Nama modul berikut merupakan usulan, belum dibuat:
 
 ```text
-apps/RAGforge/
+apps/
   knowledge/
     documents/       # Parsing, struktur, lokasi sumber, chunking
     schemas/         # Skema collection dan kontrak keluaran ekstraksi

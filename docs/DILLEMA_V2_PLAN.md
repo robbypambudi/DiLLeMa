@@ -4,7 +4,7 @@ Updated: 2026-09-17. Read this file before continuing v2 work.
 
 ## Current delivery
 
-The repository now contains an **opt-in Knowledge Graph pilot** inside `apps/RAGforge`. This is an executable first slice of the [target design](DILLEMA_V2_DESIGN.md), not the complete production v2 release. The graph is stored as normalized SQL tables in the existing PostgreSQL database. Neo4j remains a future derived projection.
+The repository now contains an **opt-in Knowledge Graph pilot** inside `apps/`. This is an executable first slice of the [target design](DILLEMA_V2_DESIGN.md), not the complete production v2 release. The graph is stored as normalized SQL tables in the existing PostgreSQL database. Neo4j remains a future derived projection.
 
 The working flow is: configure collection schema → index/upload document → queue extraction → run worker → review source-backed claims → use approved graph evidence in chat. See the [runbook](DILLEMA_V2_RUNBOOK.md) for commands and endpoint contracts.
 
@@ -44,18 +44,18 @@ The working flow is: configure collection schema → index/upload document → q
 
 | Responsibility | Files |
 | --- | --- |
-| Ontology and extraction contracts | `apps/RAGforge/knowledge/contracts.py` |
-| Source parsing and chunk identity | `apps/RAGforge/knowledge/documents.py` |
-| Model boundary and bounded validation/repair | `apps/RAGforge/knowledge/extraction.py` |
-| Canonical graph schema | `apps/RAGforge/knowledge/tables.py` |
-| Jobs, publication, review, traversal | `apps/RAGforge/knowledge/repository.py` |
-| Worker and migration commands | `apps/RAGforge/knowledge/worker.py`, `migrate.py` |
-| Live model smoke and annotated expectations | `apps/RAGforge/knowledge/smoke.py`, `knowledge/examples/pilot.expected.json` |
-| API and DI | `app/api/v1/endpoints/knowledge.py`, `app/core/container.py` under RAGforge |
-| Upload integration | `apps/RAGforge/app/pipeline/pipeline_service.py` |
-| Chat integration | `apps/RAGforge/app/services/question_service.py`, `rag/llm/chat_model.py`, `rag/llm/re_rank.py` |
-| Admin review | `apps/RAGforge/web/src/components/KnowledgePanel.tsx` |
-| Tests | `apps/RAGforge/tests/test_knowledge*.py` |
+| Ontology and extraction contracts | `apps/knowledge/contracts.py` |
+| Source parsing and chunk identity | `apps/knowledge/documents.py` |
+| Model boundary and bounded validation/repair | `apps/knowledge/extraction.py` |
+| Canonical graph schema | `apps/knowledge/tables.py` |
+| Jobs, publication, review, traversal | `apps/knowledge/repository.py` |
+| Worker and migration commands | `apps/knowledge/worker.py`, `migrate.py` |
+| Live model smoke and annotated expectations | `apps/knowledge/smoke.py`, `knowledge/examples/pilot.expected.json` |
+| API and DI | `apps/app/api/v1/endpoints/knowledge.py`, `apps/app/core/container.py` |
+| Upload integration | `apps/app/pipeline/pipeline_service.py` |
+| Chat integration | `apps/app/services/question_service.py`, `apps/rag/llm/chat_model.py`, `apps/rag/llm/re_rank.py` |
+| Admin review | `apps/web/src/components/KnowledgePanel.tsx` |
+| Tests | `apps/tests/test_knowledge*.py` |
 
 ## Invariants for subsequent agents
 
@@ -92,16 +92,16 @@ V2-02 and V2-03 establish evidence for selecting models and capacity. V2-04 impr
 
 ## Validation commands
 
-From repository root, using the existing RAGforge environment:
+From repository root, using the existing dashboard environment:
 
 ```bash
-PYTHONPATH=apps/RAGforge apps/RAGforge/.venv/bin/python -m unittest discover -s apps/RAGforge/tests -v
-PYTHONPATH=apps/RAGforge apps/RAGforge/.venv/bin/python -m knowledge.migrate --sql
-apps/RAGforge/.venv/bin/python -m compileall -q apps/RAGforge/knowledge apps/RAGforge/app apps/RAGforge/rag apps/RAGforge/migrations
+PYTHONPATH=apps apps/.venv/bin/python -m unittest discover -s apps/tests -v
+PYTHONPATH=apps apps/.venv/bin/python -m knowledge.migrate --sql
+apps/.venv/bin/python -m compileall -q apps/knowledge apps/app apps/rag apps/migrations
 git diff --check
 ```
 
-From `apps/RAGforge/web`, run `npm run build`. These commands do not call a live extraction model or apply migrations to a running database. `knowledge.migrate` without `--sql` does apply migrations.
+From `apps/web`, run `npm run build`. These commands do not call a live extraction model or apply migrations to a running database. `knowledge.migrate` without `--sql` does apply migrations.
 
 Core regression cases: unsupported quotation, invalid ontology endpoints, qualifier preservation, alias scope, deterministic IDs, exact page offsets, interrupted-worker resume, expired lease fencing, replacement publication, deletion cascades, cross-collection isolation, review authorization, graph-to-chat evidence, and streamed-answer persistence.
 

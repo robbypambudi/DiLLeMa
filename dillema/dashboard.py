@@ -8,24 +8,24 @@ import time
 from pathlib import Path
 
 
-def find_ragforge() -> Path:
-    env = os.environ.get("DILLEMA_RAGFORGE")
+def find_dashboard() -> Path:
+    env = os.environ.get("DILLEMA_DASHBOARD") or os.environ.get("DILLEMA_RAGFORGE")
     if env:
         root = Path(env).expanduser().resolve()
         if (root / "app" / "main.py").is_file():
             return root
-        sys.exit(f"DILLEMA_RAGFORGE={env} is not a DiLLeMa dashboard tree (missing app/main.py)")
+        sys.exit(f"{env} is not a DiLLeMa dashboard tree (missing app/main.py)")
 
     candidates = [
-        Path(__file__).resolve().parents[1] / "apps" / "RAGforge",
-        Path.cwd() / "apps" / "RAGforge",
+        Path(__file__).resolve().parents[1] / "apps",
+        Path.cwd() / "apps",
     ]
     for root in candidates:
         if (root / "app" / "main.py").is_file():
             return root
     sys.exit(
         "DiLLeMa dashboard not found. Run this from the DiLLeMa repository "
-        "or set DILLEMA_RAGFORGE to apps/RAGforge."
+        "or set DILLEMA_DASHBOARD to apps/."
     )
 
 
@@ -35,8 +35,8 @@ def _port_open(host: str, port: int) -> bool:
         return sock.connect_ex((host, port)) == 0
 
 
-def _ensure_docker(ragforge: Path) -> None:
-    compose = ragforge / "docker-compose.yml"
+def _ensure_docker(root: Path) -> None:
+    compose = root / "docker-compose.yml"
     if not compose.is_file():
         print("! No docker-compose.yml; skipping Postgres/Qdrant")
         return
@@ -47,7 +47,7 @@ def _ensure_docker(ragforge: Path) -> None:
     print("Starting Postgres and Qdrant…")
     result = subprocess.run(
         [docker, "compose", "up", "-d"],
-        cwd=ragforge,
+        cwd=root,
     )
     if result.returncode != 0:
         print("! docker compose up failed; API may not reach the database")
@@ -63,7 +63,7 @@ def _ensure_npm_deps(web: Path) -> None:
             sys.exit("npm install failed")
 
 
-def _uvicorn_cmd(ragforge: Path, host: str, port: int) -> list[str]:
+def _uvicorn_cmd(root: Path, host: str, port: int) -> list[str]:
     uv = shutil.which("uv")
     if uv:
         return [
@@ -76,12 +76,10 @@ def _uvicorn_cmd(ragforge: Path, host: str, port: int) -> list[str]:
             "--port",
             str(port),
         ]
-    venv_uvicorn = ragforge / ".venv" / "bin" / "uvicorn"
+    venv_uvicorn = root / ".venv" / "bin" / "uvicorn"
     if venv_uvicorn.is_file():
         return [str(venv_uvicorn), "app.main:app", "--host", host, "--port", str(port)]
-    sys.exit(
-        "uv not found and apps/RAGforge/.venv is missing. Run `uv sync` in apps/RAGforge."
-    )
+    sys.exit("uv not found and apps/.venv is missing. Run `uv sync` in apps/.")
 
 
 def _stop(procs: list[subprocess.Popen]) -> None:
@@ -104,14 +102,14 @@ def _stop(procs: list[subprocess.Popen]) -> None:
 
 
 def start_dashboard(args) -> None:
-    ragforge = find_ragforge()
-    web = ragforge / "web"
+    root = find_dashboard()
+    web = root / "web"
     api_host = args.api_host
     api_port = args.api_port
     web_port = args.web_port
 
     if not args.no_docker:
-        _ensure_docker(ragforge)
+        _ensure_docker(root)
 
     procs: list[subprocess.Popen] = []
     try:
@@ -121,8 +119,8 @@ def start_dashboard(args) -> None:
             print(f"Starting DiLLeMa API on {api_host}:{api_port}…")
             procs.append(
                 subprocess.Popen(
-                    _uvicorn_cmd(ragforge, api_host, api_port),
-                    cwd=ragforge,
+                    _uvicorn_cmd(root, api_host, api_port),
+                    cwd=root,
                     start_new_session=True,
                 )
             )

@@ -16,8 +16,8 @@ dist/
 venv/
 env/
 
-# Separate app (its own repo/submodule) — not part of the serving image
-apps/RAGforge
+# Separate dashboard app — not part of the serving image
+apps/
 
 # Research artifacts and docs (not needed at runtime)
 analysis/

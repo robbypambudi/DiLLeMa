@@ -11,9 +11,9 @@
 #   2. Run this proxy on the public port with a secret token:
 #        LLM_API_TOKEN='choose-a-long-random-secret' \
 #          caddy run --config deploy/auth-proxy/Caddyfile
-#   3. Clients (e.g. RAGforge) must send:
+#   3. Clients (e.g. the DiLLeMa dashboard in apps/) must send:
 #        Authorization: Bearer <the same token>
-#      In RAGforge set LLM_API_KEY to that token and LLM_BASE_URL to this proxy.
+#      In apps/ set LLM_API_KEY to that token and LLM_BASE_URL to this proxy.
 #
 # Validate before deploying:  caddy validate --config deploy/auth-proxy/Caddyfile
 
