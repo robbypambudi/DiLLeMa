@@ -40,17 +40,27 @@ def _ensure_docker(root: Path) -> None:
     if not compose.is_file():
         print("! No docker-compose.yml; skipping Postgres/Qdrant")
         return
+    if _port_open("127.0.0.1", 5432) and _port_open("127.0.0.1", 6333):
+        print("✓ Postgres and Qdrant already running")
+        return
     docker = shutil.which("docker")
     if not docker:
         print("! docker not found; start Postgres (5432) and Qdrant (6333) yourself")
         return
     print("Starting Postgres and Qdrant…")
-    result = subprocess.run(
-        [docker, "compose", "up", "-d"],
-        cwd=root,
-    )
-    if result.returncode != 0:
-        print("! docker compose up failed; API may not reach the database")
+    # Stable project name so `apps/` vs the old RAGforge folder does not
+    # recreate containers that already use container_name my_postgres_container.
+    for project in ("dillema", "ragforge"):
+        result = subprocess.run(
+            [docker, "compose", "-p", project, "up", "-d"],
+            cwd=root,
+        )
+        if result.returncode == 0:
+            return
+    if _port_open("127.0.0.1", 5432):
+        print("! docker compose reported an error; Postgres is already on :5432, continuing")
+        return
+    print("! docker compose up failed; API may not reach the database")
 
 
 def _ensure_npm_deps(web: Path) -> None:
@@ -63,23 +73,41 @@ def _ensure_npm_deps(web: Path) -> None:
             sys.exit("npm install failed")
 
 
+def _app_env(root: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    venv = root / ".venv"
+    if venv.is_dir():
+        env["VIRTUAL_ENV"] = str(venv)
+        env["PATH"] = str(venv / "bin") + os.pathsep + env.get("PATH", "")
+        env.pop("UV_PROJECT", None)
+        env.pop("UV_PROJECT_ENVIRONMENT", None)
+    return env
+
+
 def _uvicorn_cmd(root: Path, host: str, port: int) -> list[str]:
+    # Use `python -m uvicorn` so stale console-script shebangs
+    # (e.g. apps/RAGforge/.venv after the folder move) still work.
+    venv_python = root / ".venv" / "bin" / "python"
+    args = [
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        host,
+        "--port",
+        str(port),
+        "--reload",
+        "--reload-dir",
+        str(root / "app"),
+        "--reload-dir",
+        str(root / "rag"),
+    ]
+    if venv_python.is_file():
+        return [str(venv_python), *args]
     uv = shutil.which("uv")
     if uv:
-        return [
-            uv,
-            "run",
-            "uvicorn",
-            "app.main:app",
-            "--host",
-            host,
-            "--port",
-            str(port),
-        ]
-    venv_uvicorn = root / ".venv" / "bin" / "uvicorn"
-    if venv_uvicorn.is_file():
-        return [str(venv_uvicorn), "app.main:app", "--host", host, "--port", str(port)]
-    sys.exit("uv not found and apps/.venv is missing. Run `uv sync` in apps/.")
+        return [uv, "run", "--directory", str(root), "python", *args]
+    sys.exit("apps/.venv is missing. Run `uv sync` in apps/.")
 
 
 def _stop(procs: list[subprocess.Popen]) -> None:
@@ -121,6 +149,7 @@ def start_dashboard(args) -> None:
                 subprocess.Popen(
                     _uvicorn_cmd(root, api_host, api_port),
                     cwd=root,
+                    env=_app_env(root),
                     start_new_session=True,
                 )
             )

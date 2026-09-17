@@ -1,32 +1,10 @@
-import asyncio
-from functools import wraps
+"""Compatibility import for endpoint dependency injection.
 
-from dependency_injector.wiring import inject as di_inject
-from loguru import logger
+Keep synchronous endpoints synchronous so FastAPI executes database and model
+work in its worker thread pool. Repository context managers own their sessions;
+there is no request-level session to close here.
+"""
 
-from app.services.base_service import BaseService
+from dependency_injector.wiring import inject
 
-
-def inject(func):
-    @di_inject
-    @wraps(func)
-    async def wrapper(*args, **kwargs):
-        injected_services = [arg for arg in kwargs.values() if isinstance(arg, BaseService)]
-
-        try:
-            # Handle async functions
-            if asyncio.iscoroutinefunction(func):
-                result = await func(*args, **kwargs)
-                return result
-            # Handle regular functions
-            else:
-                result = func(*args, **kwargs)
-                return result
-        finally:
-            if injected_services:
-                try:
-                    injected_services[-1].close_scoped_session()
-                except Exception as e:
-                    logger.error(e)
-
-    return wrapper
+__all__ = ["inject"]

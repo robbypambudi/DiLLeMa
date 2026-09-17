@@ -123,7 +123,13 @@ If `.venv` is not activated, prefix commands with `uv run` (for example `uv run 
 
 ### Single Device Deployment
 
-Deploy a model on a single machine:
+`dillema serve` reads `LLM_MODEL` and `LLM_MODEL_SOURCE` from `apps/.env` and starts a local Ray head if needed. The web dashboard is a separate command (`dillema dashboard`).
+
+```bash
+uv run dillema serve
+```
+
+Or pass the model explicitly:
 
 ```bash
 dillema serve \
@@ -180,8 +186,8 @@ dillema stop
 - `--address`: Head node address in format `ip:port` (required)
 
 #### `dillema serve`
-- `--model-id`: Model identifier (required)
-- `--model-source`: HuggingFace model path (required)
+- `--model-id`: Model identifier (default: `LLM_MODEL` in `apps/.env`)
+- `--model-source`: HuggingFace model path (default: `LLM_MODEL_SOURCE` or `TEXT_GENERATION_MODEL`)
 - `--min-replicas`: Minimum replicas (default: 1)
 - `--max-replicas`: Maximum replicas (default: 1)
 - `--tensor-parallel`: Tensor parallel size (default: 1)

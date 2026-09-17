@@ -11,7 +11,9 @@ from app.repositories.users_repository import UsersRepository
 from app.services.auth_service import AuthService
 from app.services.collection_service import CollectionsService
 from app.services.files_service import FilesService
+from app.services.knowledge_service import KnowledgeService
 from app.services.question_service import QuestionsService
+from app.services.retrieval_service import RetrievalService
 from rag.qdrant.client import QdrantHttpClient
 from rag.embedding.embedding_factory import EmbeddingFactory
 from rag.embedding.device import embedding_device
@@ -46,6 +48,9 @@ class Container(containers.DeclarativeContainer):
     db = providers.Singleton(Database, db_url=str(settings.SQLALCHEMY_DATABASE_URI))
     knowledge_repository = providers.Factory(
         KnowledgeRepository, session_factory=db.provided.session
+    )
+    knowledge_service = providers.Factory(
+        KnowledgeService, repository=knowledge_repository
     )
     re_ranking = providers.ThreadSafeSingleton(ReRanking)
     openai_chat = providers.Singleton(OpenAIChat, key="any")
@@ -88,15 +93,22 @@ class Container(containers.DeclarativeContainer):
         collections_repository=collections_repository,
         qdrant_client=qdrant_client,
     )
-    question_service = providers.Factory(
-        QuestionsService,
-        questions_repository=questions_repository,
+    retrieval_service = providers.Factory(
+        RetrievalService,
         collections_repository=collections_repository,
         qdrant_client=qdrant_client,
         augment_query_generator=augment_query_generator,
         knowledge_repository=knowledge_repository,
         embedding_model=embedding_model,
         re_ranking=re_ranking,
+    )
+    question_service = providers.Factory(
+        QuestionsService,
+        questions_repository=questions_repository,
+        collections_repository=collections_repository,
+        qdrant_client=qdrant_client,
+        augment_query_generator=augment_query_generator,
+        retrieval_service=retrieval_service,
         openai_chat=openai_chat,
     )
     auth_service = providers.Factory(AuthService, users_repository=users_repository)

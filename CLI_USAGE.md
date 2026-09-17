@@ -12,6 +12,14 @@ Then run CLI commands with `uv run` (for example `uv run dillema serve ...`) or 
 
 ## Single Device
 
+Reads `LLM_MODEL` and `LLM_MODEL_SOURCE` from `apps/.env` (or `.env` in the current directory). Starts a local Ray head if none is running. Does not start the web dashboard.
+
+```bash
+uv run dillema serve
+```
+
+Override the env model when needed:
+
 ```bash
 dillema serve \
   --model-id qwen-0.5b \
@@ -64,12 +72,12 @@ dillema start dashboard
 - API: http://localhost:8080
 - Web: http://localhost:3000
 
-This does not start the LLM. Run `dillema head` and `dillema serve` separately if chat should call DiLLeMa.
+This does not start the LLM. Run `dillema serve` separately if chat should call DiLLeMa.
 
 ## Options
 
-- `--model-id`: Model identifier (required)
-- `--model-source`: HuggingFace model path (required)
+- `--model-id`: Model identifier (default: `LLM_MODEL`)
+- `--model-source`: HuggingFace model path (default: `LLM_MODEL_SOURCE` or `TEXT_GENERATION_MODEL`)
 - `--min-replicas`: Minimum replicas (default: 1)
 - `--max-replicas`: Maximum replicas (default: 1)
 - `--tensor-parallel`: Tensor parallel size (default: 1)

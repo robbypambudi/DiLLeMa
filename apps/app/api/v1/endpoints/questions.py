@@ -38,7 +38,13 @@ async def question_stream(
 ):
     return EventSourceResponse(
         question_service.question_stream(payload),
-        media_type="text/event-stream"
+        media_type="text/event-stream",
+        ping=15,
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 

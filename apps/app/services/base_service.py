@@ -17,14 +17,12 @@ class RepositoryProtocol(Protocol):
 
     def delete_by_id(self, id: uuid.UUID) -> Any: ...
 
-    def close_scoped_session(self):
-        pass
-
 
 class BaseService:
     """
     Base service class for all services.
     """
+
     _repository: RepositoryProtocol
 
     def __init__(self, repository: RepositoryProtocol) -> None:
@@ -50,6 +48,3 @@ class BaseService:
 
     def remove_by_id(self, id: uuid.UUID) -> Any:
         return self._repository.delete_by_id(id)
-
-    def close_scoped_session(self):
-        self._repository.close_scoped_session()

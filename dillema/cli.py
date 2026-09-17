@@ -1,6 +1,10 @@
 import argparse
-import subprocess
+import shutil
 import socket
+import subprocess
+import sys
+
+from dillema.env import load_dillema_env, model_id_from_env, model_source_from_env
 
 
 def get_local_ip():
@@ -27,7 +31,7 @@ def cmd_head(args):
         return
     print(f"\n✓ Head node started!")
     print(f"✓ Connect workers with: dillema worker --address='{ip}:{args.port}'")
-    print(f"✓ Dashboard: http://{ip}:8265")
+    print(f"✓ Ray dashboard: http://{ip}:8265")
 
 
 def cmd_worker(args):
@@ -47,12 +51,57 @@ def cmd_stop(args):
     print("✓ Ray stopped!")
 
 
+def _ray_cluster_up() -> bool:
+    ray_bin = shutil.which("ray")
+    if not ray_bin:
+        return False
+    result = subprocess.run(
+        [ray_bin, "status"],
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def _ensure_ray(address: str | None) -> str:
+    if address and address != "auto":
+        return address
+    if _ray_cluster_up():
+        print("✓ Ray cluster already running")
+        return "auto"
+    ray_bin = shutil.which("ray")
+    if not ray_bin:
+        sys.exit("ray CLI not found. Install the DiLLeMa environment with `uv sync`.")
+    ip = get_local_ip()
+    print(f"No Ray cluster found; starting head at {ip}:6379…")
+    cmd = [
+        ray_bin,
+        "start",
+        "--head",
+        "--port=6379",
+        "--dashboard-host=0.0.0.0",
+    ]
+    if subprocess.run(cmd).returncode != 0:
+        sys.exit("Failed to start Ray head node.")
+    print(f"✓ Ray head started (dashboard http://{ip}:8265)")
+    return "auto"
+
+
 def cmd_serve(args):
     import ray
     from ray import serve
     from dillema.serve import LLMServe
 
-    ray.init(address=args.ray_address or "auto", ignore_reinit_error=True)
+    model_id = args.model_id or model_id_from_env()
+    model_source = args.model_source or model_source_from_env()
+    if not model_id or not model_source:
+        sys.exit(
+            "Model is not configured. Set LLM_MODEL and LLM_MODEL_SOURCE in apps/.env "
+            "(or pass --model-id and --model-source)."
+        )
+
+    ray_address = _ensure_ray(args.ray_address)
+    ray.init(address=ray_address, ignore_reinit_error=True)
 
     runtime_env = None
     if args.network_interface:
@@ -64,8 +113,8 @@ def cmd_serve(args):
         }
 
     wrapper = LLMServe(
-        model_id=args.model_id,
-        model_source=args.model_source,
+        model_id=model_id,
+        model_source=model_source,
         hf_token=args.hf_token,
         tensor_parallel_size=args.tensor_parallel,
         pipeline_parallel_size=args.pipeline_parallel,
@@ -80,9 +129,9 @@ def cmd_serve(args):
     host = args.app_host or "0.0.0.0"
     port = args.app_port or 8000
 
-    print(f"✓ Deploying {args.model_source}...")
-    print(f"✓ Dashboard: http://{host}:8265")
-    print(f"✓ API: http://{host}:{port}")
+    print(f"✓ Deploying {model_id} from {model_source}…")
+    print(f"✓ Ray dashboard: http://{host}:8265")
+    print(f"✓ OpenAI API: http://{host}:{port}/v1")
 
     serve.start(http_options=serve.config.HTTPOptions(host=host, port=port))
     serve.run(app, blocking=True)
@@ -107,6 +156,8 @@ def _add_dashboard_args(parser):
 
 
 def main():
+    load_dillema_env()
+
     parser = argparse.ArgumentParser(description="DiLLeMa - Distributed LLM")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
@@ -114,7 +165,7 @@ def main():
     head_parser = subparsers.add_parser("head", help="Start Ray head node")
     head_parser.add_argument("--port", type=int, default=6379, help="Ray port")
     head_parser.add_argument(
-        "--dashboard-host", default="0.0.0.0", help="Dashboard host"
+        "--dashboard-host", default="0.0.0.0", help="Ray dashboard host"
     )
     head_parser.set_defaults(func=cmd_head)
 
@@ -143,10 +194,19 @@ def main():
     )
     _add_dashboard_args(dashboard_parser)
 
-    serve_parser = subparsers.add_parser("serve", help="Deploy LLM model")
-    serve_parser.add_argument("--model-id", required=True, help="Model identifier")
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Start Ray if needed and deploy the LLM from env or flags",
+    )
     serve_parser.add_argument(
-        "--model-source", required=True, help="HuggingFace model path"
+        "--model-id",
+        default=None,
+        help="Model identifier (default: LLM_MODEL from apps/.env)",
+    )
+    serve_parser.add_argument(
+        "--model-source",
+        default=None,
+        help="HuggingFace model path (default: LLM_MODEL_SOURCE or TEXT_GENERATION_MODEL)",
     )
     serve_parser.add_argument(
         "--min-replicas", type=int, default=1, help="Minimum replicas"

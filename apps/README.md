@@ -32,8 +32,15 @@ This project provides a modular, extensible foundation for quickly prototyping o
 
 ## 📁 Project Structure
 ```
-
+app/           # FastAPI routes, services, repositories and application factory
+rag/           # Embeddings, generation, ranking and vector adapters
+knowledge/     # Knowledge extraction, persistence and worker
+web/src/       # React app, feature modules and shared UI/API infrastructure
+tests/         # Offline and opt-in PostgreSQL regression tests
 ```
+
+See [dashboard development rules](../docs/DASHBOARD_DEVELOPMENT.md) for module
+boundaries, request lifecycle rules and verification commands.
 
 ## Quick Start
 
