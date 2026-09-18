@@ -103,3 +103,20 @@ def test_dashboard_sigterm_cleans_up_children(tmp_path, monkeypatch):
 
     stop.assert_called_once_with(children)
     assert signal.getsignal(signal.SIGTERM) == previous
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [(["head"], None), (["head", "--num-cpus", "0"], "--num-cpus=0")],
+)
+def test_head_can_be_kept_free_of_workloads(argv, expected, monkeypatch):
+    monkeypatch.setattr(cli, "load_dillema_env", lambda: None)
+    monkeypatch.setattr(cli, "get_local_ip", lambda: "10.0.0.1")
+    monkeypatch.setattr(sys, "argv", ["dillema", *argv])
+    calls = []
+    monkeypatch.setattr(
+        cli.subprocess, "run", lambda cmd, **_: calls.append(cmd) or Mock(returncode=0)
+    )
+    cli.main()
+    flags = [arg for arg in calls[0] if arg.startswith("--num-cpus")]
+    assert flags == ([expected] if expected else [])

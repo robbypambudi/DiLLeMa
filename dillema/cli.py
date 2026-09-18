@@ -29,6 +29,11 @@ def cmd_head(args):
         f"--port={args.port}",
         f"--dashboard-host={args.dashboard_host}",
     ]
+    if args.num_cpus is not None:
+        # 0 keeps the head a coordinator only: on a head without a GPU, the
+        # ingress and other CPU actors then run on the GPU worker, next to
+        # the model, instead of here.
+        cmd.append(f"--num-cpus={args.num_cpus}")
     print(f"Starting Ray head node at {ip}:{args.port}")
     if subprocess.run(cmd).returncode != 0:
         print("✗ Failed to start Ray head node.")
@@ -227,6 +232,13 @@ def main():
     head_parser.add_argument("--port", type=int, default=6379, help="Ray port")
     head_parser.add_argument(
         "--dashboard-host", default="0.0.0.0", help="Ray dashboard host"
+    )
+    head_parser.add_argument(
+        "--num-cpus",
+        type=int,
+        default=None,
+        help="CPUs the head offers to workloads; 0 schedules nothing on it "
+        "(use on a head without a GPU)",
     )
     head_parser.set_defaults(func=cmd_head)
 
