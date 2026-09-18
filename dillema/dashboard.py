@@ -98,8 +98,8 @@ def _uv_run(root: Path, *args: str) -> list[str]:
 
 
 def _ensure_project(root: Path) -> None:
-    if (root / ".venv" / "bin" / "python").is_file():
-        return
+    # Synced every start: a no-op when current, and it replaces a .venv left
+    # behind by a failed sync or built on the wrong Python (apps/.python-version).
     print("Syncing dashboard environment with uv…")
     if subprocess.run([_uv(), "sync"], cwd=root, env=_app_env(root)).returncode != 0:
         sys.exit("uv sync failed in apps/. Fix the environment, then retry.")

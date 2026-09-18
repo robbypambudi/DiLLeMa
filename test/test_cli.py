@@ -120,3 +120,15 @@ def test_head_can_be_kept_free_of_workloads(argv, expected, monkeypatch):
     cli.main()
     flags = [arg for arg in calls[0] if arg.startswith("--num-cpus")]
     assert flags == ([expected] if expected else [])
+
+
+def test_dashboard_env_is_synced_even_when_a_venv_exists(tmp_path, monkeypatch):
+    # A failed sync leaves a .venv behind (possibly on the wrong Python);
+    # skipping sync because it exists would never repair it.
+    (tmp_path / ".venv" / "bin").mkdir(parents=True)
+    (tmp_path / ".venv" / "bin" / "python").touch()
+    monkeypatch.setattr(dashboard.shutil, "which", lambda name: name)
+    run = Mock(return_value=Mock(returncode=0))
+    monkeypatch.setattr(dashboard.subprocess, "run", run)
+    dashboard._ensure_project(tmp_path)
+    assert run.call_args.args[0] == ["uv", "sync"]
