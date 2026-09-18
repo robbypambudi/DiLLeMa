@@ -83,7 +83,7 @@ It was previously a git submodule; it is now a plain directory at `apps/`, so ed
 - **Frontend:** React + TypeScript + Vite + Tailwind in `web/` (port 3000).
 - **Infra:** `docker-compose.yml` brings up Postgres (5432) and Qdrant (6333/6334).
 
-**Configuration:** one `.env` at the repository root (template `.env.example`) is read by the `dillema` CLI (`dillema/env.py`), the API (`app/core/config.py`) and the web app (`web/vite.config.ts` sets `envDir` to the repo root and maps `BACKEND_URL` → `VITE_BACKEND_URL`; empty means same-origin `/api` via the Vite proxy). A legacy `apps/.env` is still read for missing keys, with a warning; `apps/web/.env` is ignored.
+**Configuration:** one `.env` at the repository root (template `.env.example`) is read by the `dillema` CLI (`dillema/env.py`), the API (`app/core/config.py`) and the web app (`web/vite.config.ts` loads the root `.env` itself and exports its `VITE_*` keys, mapping `BACKEND_URL` → `VITE_BACKEND_URL`; empty means same-origin `/api` via the Vite proxy — it deliberately does not set `envDir` to the repo root, because Vite watches `envDir` recursively and would hit the inotify limit on `.venv`). A legacy `apps/.env` is still read for missing keys, with a warning; `apps/web/.env` is ignored.
 
 ### Running it (from `apps/`)
 
