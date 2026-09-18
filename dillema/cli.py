@@ -1,8 +1,12 @@
 import argparse
+import os
+import shlex
 import shutil
 import socket
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 
 from dillema.env import load_dillema_env, model_id_from_env, model_source_from_env
 
@@ -143,7 +147,60 @@ def cmd_dashboard(args):
     start_dashboard(args)
 
 
+def _start_detached(args):
+    command = [sys.executable, "-u", "-m", "dillema.cli", args.command]
+    if args.command == "start":
+        command.append(args.target)
+    for name, value in vars(args).items():
+        if name in {"command", "target", "func", "detach"} or value is None:
+            continue
+        flag = "--" + name.replace("_", "-")
+        if isinstance(value, bool):
+            if value:
+                command.append(flag)
+        else:
+            command.append(f"{flag}={value}")
+
+    state = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state")
+    log_dir = state / "dillema"
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="ab",
+            prefix=f"{args.command}-",
+            suffix=".log",
+            dir=log_dir,
+            delete=False,
+        ) as log:
+            proc = subprocess.Popen(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+    except OSError as exc:
+        sys.exit(f"Failed to start background process: {exc}")
+    print(
+        f"✓ Background process launched (PID {proc.pid}); startup continues in the log."
+    )
+    print(f"✓ Logs: tail -f {shlex.quote(log.name)}")
+    print(f"✓ Stop process: kill {proc.pid}")
+    if args.command == "serve":
+        print("✓ Stop the Ray cluster and model: dillema stop")
+
+
+def _add_detach_arg(parser):
+    parser.add_argument(
+        "-d",
+        "--detach",
+        action="store_true",
+        help="Run in the background and write output to a log file",
+    )
+
+
 def _add_dashboard_args(parser):
+    _add_detach_arg(parser)
     parser.add_argument("--api-host", default="0.0.0.0", help="Dashboard API host")
     parser.add_argument("--api-port", type=int, default=8080, help="Dashboard API port")
     parser.add_argument("--web-port", type=int, default=3000, help="Dashboard web port")
@@ -198,6 +255,7 @@ def main():
         "serve",
         help="Start Ray if needed and deploy the LLM from env or flags",
     )
+    _add_detach_arg(serve_parser)
     serve_parser.add_argument(
         "--model-id",
         default=None,
@@ -235,7 +293,10 @@ def main():
     args = parser.parse_args()
 
     if hasattr(args, "func"):
-        args.func(args)
+        if getattr(args, "detach", False):
+            _start_detached(args)
+        else:
+            args.func(args)
     elif args.command == "start":
         start_parser.print_help()
     else:

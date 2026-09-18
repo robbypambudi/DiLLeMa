@@ -129,6 +129,23 @@ If `.venv` is not activated, prefix commands with `uv run` (for example `uv run 
 uv run dillema serve
 ```
 
+Add `-d` (or `--detach`) to return to the terminal immediately and keep running
+in the background, including after the terminal closes:
+
+```bash
+uv run dillema serve -d
+uv run dillema dashboard -d
+# Equivalent dashboard command:
+uv run dillema start dashboard -d
+```
+
+Each command prints its background PID and a `tail -f` command for its log in
+`$XDG_STATE_HOME/dillema` (default: `~/.local/state/dillema`). Startup continues
+asynchronously; check the log for readiness or errors. Use `kill <PID>` to stop
+the background process; for the dashboard this also stops the API/web processes
+it started. Use `dillema stop` to stop the Ray cluster and deployed model.
+Without `-d`, commands continue running in the foreground.
+
 Or pass the model explicitly:
 
 ```bash
@@ -186,6 +203,7 @@ dillema stop
 - `--address`: Head node address in format `ip:port` (required)
 
 #### `dillema serve`
+- `-d`, `--detach`: Run in the background with output saved to a log
 - `--model-id`: Model identifier (default: `LLM_MODEL` in `apps/.env`)
 - `--model-source`: HuggingFace model path (default: `LLM_MODEL_SOURCE` or `TEXT_GENERATION_MODEL`)
 - `--min-replicas`: Minimum replicas (default: 1)
@@ -197,6 +215,13 @@ dillema stop
 - `--network-interface`: Network interface for distributed communication (e.g., eth0, enp132s0)
 - `--app-host`: Application host address (default: 0.0.0.0)
 - `--app-port`: Application port number (default: 8000)
+
+#### `dillema dashboard` / `dillema start dashboard`
+- `-d`, `--detach`: Run the API and web UI in the background with output saved to a log
+- `--api-host`: API host (default: 0.0.0.0)
+- `--api-port`: API port (default: 8080)
+- `--web-port`: Web UI port (default: 3000)
+- `--no-docker`: Skip starting Postgres/Qdrant with Docker Compose
 
 ### Python API Usage
 

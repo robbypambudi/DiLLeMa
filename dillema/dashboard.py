@@ -58,7 +58,9 @@ def _ensure_docker(root: Path) -> None:
         if result.returncode == 0:
             return
     if _port_open("127.0.0.1", 5432):
-        print("! docker compose reported an error; Postgres is already on :5432, continuing")
+        print(
+            "! docker compose reported an error; Postgres is already on :5432, continuing"
+        )
         return
     print("! docker compose up failed; API may not reach the database")
 
@@ -160,13 +162,17 @@ def start_dashboard(args) -> None:
     api_port = args.api_port
     web_port = args.web_port
 
-    if not args.no_docker:
-        _ensure_docker(root)
-    _ensure_project(root)
-    _ensure_migrations(root)
+    def terminate(signum, frame):
+        raise KeyboardInterrupt
 
     procs: list[subprocess.Popen] = []
+    previous_sigterm = signal.signal(signal.SIGTERM, terminate)
     try:
+        if not args.no_docker:
+            _ensure_docker(root)
+        _ensure_project(root)
+        _ensure_migrations(root)
+
         if _port_open("127.0.0.1", api_port):
             print(f"✓ API already running on :{api_port}")
         else:
@@ -223,4 +229,7 @@ def start_dashboard(args) -> None:
     except KeyboardInterrupt:
         print("\nStopping dashboard…")
     finally:
-        _stop(procs)
+        try:
+            _stop(procs)
+        finally:
+            signal.signal(signal.SIGTERM, previous_sigterm)
