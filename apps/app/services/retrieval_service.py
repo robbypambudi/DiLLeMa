@@ -90,14 +90,19 @@ class RetrievalService:
 
         return ReRanking()
 
-    def retrieve(self, payload: CreateQuestion, using_augment_query=False):
-        """Hybrid leaf retrieval, then parent-page packing for generation."""
+    def retrieve(self, payload: CreateQuestion, using_augment_query: bool | None = False):
+        """Hybrid leaf retrieval, then parent-page packing for generation.
+
+        `using_augment_query=None` defers to the `QUERY_AUGMENTATION` setting.
+        """
         collection = self.collections_repository.read_by_id(payload.collection_id)
         if not collection:
             raise NotFoundError(
                 f"Collection with ID {payload.collection_id} not found."
             )
 
+        if using_augment_query is None:
+            using_augment_query = settings.QUERY_AUGMENTATION
         if using_augment_query:
             queries = self.augment_query_generator.augment(payload.question_text)
         else:
@@ -159,10 +164,15 @@ class RetrievalService:
         pairs = list(candidates.values())
         if not pairs:
             return []
+        # The question and its translation: keyword rewrites widen the search,
+        # but scoring every candidate against every rewrite multiplies the
+        # cross-encoder's work for little gain.
+        rerank_options = {"queries": queries[:2]} if len(queries) > 1 else {}
         ranked = self.re_ranking.rank(
             pairs=pairs,
             top_results=12 if graph_used else 8,
             min_score=settings.RERANK_MIN_SCORE,
+            **rerank_options,
         )
         if not ranked:
             logger.info(

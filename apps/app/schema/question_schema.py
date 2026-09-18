@@ -1,8 +1,15 @@
 import uuid
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
 
 from app.utils.schema import as_form
+
+# A form field left blank arrives as "", which is "not chosen", not a
+# malformed boolean.
+OptionalFlag = Annotated[
+    bool | None, BeforeValidator(lambda value: None if value == "" else value)
+]
 
 
 class BaseQuestion(BaseModel):
@@ -13,7 +20,8 @@ class BaseQuestion(BaseModel):
 @as_form
 class CreateQuestion(BaseQuestion):
     collection_id: uuid.UUID
-    using_augment_query: bool = False
+    # Unset follows the server's QUERY_AUGMENTATION setting.
+    using_augment_query: OptionalFlag = None
     conversation_id: uuid.UUID | None = None
 
 

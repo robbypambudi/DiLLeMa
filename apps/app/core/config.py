@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     # the generator: a small model reads every page it is given as an answer,
     # so a weak neighbour becomes a wrong fact. 0 disables the cut.
     RERANK_RELATIVE_FLOOR: float = Field(default=0.5, ge=0.0, le=1.0)
+    # Rewrite each question with the LLM (English translation + keywords)
+    # before searching, unless the request says otherwise. It is what reaches
+    # English passages from an Indonesian question; it costs one short LLM call.
+    QUERY_AUGMENTATION: bool = True
 
     KG_ENABLED: bool = False
     KG_LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")

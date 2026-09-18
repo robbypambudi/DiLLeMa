@@ -19,6 +19,9 @@ class LLMServe:
         merged = {
             "py_executable": sys.executable,
             "env_vars": {"VLLM_USE_V1": "1"},
+            # Child actors (EngineCore, GPU workers) inherit this runtime env,
+            # so the hook reaches the processes that launch Triton kernels.
+            "worker_process_setup_hook": "dillema.serve.triton_allocator.install",
         }
         if self.hf_token:
             merged["env_vars"]["HF_TOKEN"] = self.hf_token

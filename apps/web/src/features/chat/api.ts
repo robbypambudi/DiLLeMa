@@ -30,7 +30,7 @@ export async function* streamAnswer(collectionId: string, question: string, sign
     question_id: `user_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     question_text: question,
     collection_id: collectionId,
-    using_augment_query: 'false',
+    // using_augment_query is left unset so the server's QUERY_AUGMENTATION applies.
   })
   if (conversationId) body.set('conversation_id', conversationId)
   const response = await apiFetch('/api/v1/questions/stream', {

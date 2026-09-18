@@ -9,15 +9,39 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "any")
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen-7b")
 
+# The generator is small enough to answer the question instead of rewriting
+# it, or to repeat it five times. A fixed labelled format plus two worked
+# examples keeps it to a rewrite, and the labels are what the parser accepts:
+# anything unlabelled -- an answer, a preamble -- is dropped.
 prompt = """
-Anda adalah asisten ahli dalam menelusuri dokumen petunjuk teknis.
-Untuk setiap pertanyaan dari pengguna, sarankan hingga lima pertanyaan tambahan yang relevan untuk membantu menemukan informasi yang dibutuhkan.
-Setiap pertanyaan tambahan harus:
-- Singkat dan langsung (tanpa kalimat majemuk)
-- Hanya satu pertanyaan per baris (tanpa nomor atau tanda baca di depan)
-- Beragam aspeknya, namun tetap berkaitan erat dengan pertanyaan awal
+Tugasmu HANYA menulis ulang pertanyaan pengguna untuk mesin pencari dokumen.
+Jangan menjawab pertanyaan. Jangan menambah topik baru.
+Tulis tepat tiga baris dengan format:
+EN: terjemahan pertanyaan ke bahasa Inggris
+ID: kata kunci penting pertanyaan dalam bahasa Indonesia
+KEY: kata kunci penting dalam bahasa Inggris
 """
 
+# Worked examples, deliberately unrelated to any indexed document so they
+# cannot leak an answer into the search.
+FEW_SHOT = [
+    (
+        "Siapa dosen pengampu mata kuliah Basis Data?",
+        (
+            "EN: Who are the lecturers of the Database course?\n"
+            "ID: dosen pengampu mata kuliah basis data\n"
+            "KEY: lecturer Database course"
+        ),
+    ),
+    (
+        "Berapa anggaran penelitian tahun 2027?",
+        (
+            "EN: What is the research budget for 2027?\n"
+            "ID: anggaran penelitian tahun 2027\n"
+            "KEY: research budget 2027"
+        ),
+    ),
+]
 
 class OpenAIClient:
     def __init__(self, api_key=None):
@@ -30,33 +54,31 @@ class OpenAIClient:
         logger.info("OpenAI client initialized against {}".format(LLM_BASE_URL))
 
 
-# Numbering, bullets and the "Berikut ..." preamble a small model wraps its
-# list in. Left in, each one becomes a search that retrieves 20 unrelated chunks.
-_ORNAMENT = re.compile(r"^\s*(?:[-*\u2022]|\d+[.)])\s*")
-_PREAMBLE = re.compile(
-    r"^\s*(?:berikut|berikut ini|pertanyaan tambahan|tentu|baik|semoga|catatan)\b",
-    re.I,
-)
+_LABELLED = re.compile(r"^\s*[-*\u2022]?\s*(EN|ID|KEY)\s*[:\uff1a]\s*(.+?)\s*$", re.IGNORECASE)
+_THINK = re.compile(r"<think>.*?(?:</think>|$)", re.DOTALL | re.IGNORECASE)
 MAX_EXTRA_QUERIES = 3
-MIN_QUERY_CHARS = 15
+MIN_QUERY_CHARS = 4
+MAX_QUERY_CHARS = 200
 
 
 def clean_queries(original: str, generated: str) -> list[str]:
-    """The original question first, then the generated lines worth searching.
+    """The original question first, then the labelled rewrites worth searching.
 
-    A 7B model answers this prompt with a heading, numbering and the occasional
-    apology. Only interrogative lines survive, deduplicated and capped: every
-    extra query costs a full retrieval pass and widens the candidate pool the
-    reranker has to sort out.
+    Only `EN:`/`ID:`/`KEY:` lines count. Keyword lines are kept although they
+    are not questions: they are what BM25 matches best, and the English ones
+    reach documents written in English that an Indonesian question misses.
+    Every extra query costs a retrieval pass, so they are deduplicated and
+    capped.
     """
     queries = [original]
     seen = {original.strip().lower()}
-    for line in (generated or "").splitlines():
-        candidate = _ORNAMENT.sub("", line).strip().strip('"')
-        if len(candidate) < MIN_QUERY_CHARS or _PREAMBLE.match(candidate):
+    for line in _THINK.sub("", generated or "").splitlines():
+        match = _LABELLED.match(line)
+        if not match:
             continue
-        if candidate.endswith(":") or "?" not in candidate:
-            continue  # a heading or a statement, not a question to search with
+        candidate = match.group(2).strip().strip('"').strip()
+        if not MIN_QUERY_CHARS <= len(candidate) <= MAX_QUERY_CHARS:
+            continue
         key = candidate.lower()
         if key in seen:
             continue
@@ -71,6 +93,15 @@ class AugmentQueryGenerated:
     def __init__(self, api_key):
         self.openai = OpenAIClient(api_key=api_key)
 
+    @staticmethod
+    def _messages(query: str) -> list[dict]:
+        messages = [{"role": "system", "content": prompt.strip()}]
+        for question, rewrite in FEW_SHOT:
+            messages.append({"role": "user", "content": question})
+            messages.append({"role": "assistant", "content": rewrite})
+        messages.append({"role": "user", "content": query})
+        return messages
+
     def augment(self, query, model: str | None = None) -> list[str]:
         """
         Augment the given query using OpenAI's API.
@@ -79,14 +110,10 @@ class AugmentQueryGenerated:
         try:
             response = self.openai.client.chat.completions.create(
                 model=model,
-                messages=[
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": query}
-                ],
-                max_tokens=150,
-                # Low enough that the model rephrases the question instead of
-                # inventing a neighbouring topic.
-                temperature=0.3,
+                messages=self._messages(query),
+                max_tokens=120,
+                # A rewrite has one right answer; sampling only adds drift.
+                temperature=0.0,
             )
             generated = response.choices[0].message.content or ""
         except Exception as exc:

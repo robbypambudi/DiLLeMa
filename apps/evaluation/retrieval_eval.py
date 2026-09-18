@@ -97,11 +97,21 @@ def main() -> None:
     parser.add_argument("--label", default="run", help="name printed with the results")
     parser.add_argument("--out", type=Path, help="write per-question results as JSON")
     parser.add_argument("--keep", action="store_true", help="keep the eval collections")
+    parser.add_argument(
+        "--augment",
+        action="store_true",
+        help="rewrite each question with the LLM first (needs LLM_BASE_URL up)",
+    )
     args = parser.parse_args()
 
     golden = json.loads(args.golden.read_text())
     client = QdrantHttpClient()
-    retrieval = RetrievalService(None, client, None)
+    augmenter = None
+    if args.augment:
+        from agents.augment_query_generated import AugmentQueryGenerated
+
+        augmenter = AugmentQueryGenerated(api_key=None)
+    retrieval = RetrievalService(None, client, augmenter)
     embedding = retrieval.embedding_model
     chunker = DocumentChunker()
 
@@ -133,9 +143,11 @@ def main() -> None:
             )
             pool_pages = [hit.payload.get("page") for hit in pool]
             payload = SimpleNamespace(
-                collection_id=uuid4(), question_text=query, using_augment_query=False
+                collection_id=uuid4(),
+                question_text=query,
+                using_augment_query=args.augment,
             )
-            packed = retrieval.retrieve(payload)
+            packed = retrieval.retrieve(payload, using_augment_query=args.augment)
             pages = [pair[2].get("page") for pair in packed]
             scores = [round(pair[2].get("rerank_score", 0.0), 4) for pair in packed]
             rank = next((i + 1 for i, page in enumerate(pages) if page in truth), None)

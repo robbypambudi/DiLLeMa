@@ -166,28 +166,34 @@ class PdfExtractionTests(unittest.TestCase):
 
 
 class QueryAugmentationTests(unittest.TestCase):
-    def test_preambles_headings_and_duplicates_never_become_searches(self):
+    def test_only_labelled_rewrites_become_searches(self):
         queries = clean_queries(
-            "Berapa anggaran penelitian?",
-            "Berikut adalah pertanyaan tambahan:\n"
-            "1. Berapa pagu penelitian 2027?\n"
-            "Pertanyaan tambahan:\n"
-            "Anggaran ditetapkan oleh rektor.\n"
-            "- Berapa pagu penelitian 2027?\n"
-            "ok?\n"
-            "Siapa yang menetapkan pagu?",
+            "Apa saja mata kuliah pilihan?",
+            "<think>menerjemahkan</think>\n"
+            "Berikut adalah daftar mata kuliah pilihan:\n"
+            "1. Sistem Informasi\n"
+            "EN: What are the elective courses?\n"
+            "ID: mata kuliah pilihan\n"
+            "KEY: elective courses\n"
+            "KEY: elective courses",
         )
+        # The answer the model made up is not a search; keyword lines are,
+        # although they are not questions.
         self.assertEqual(
             queries,
             [
-                "Berapa anggaran penelitian?",
-                "Berapa pagu penelitian 2027?",
-                "Siapa yang menetapkan pagu?",
+                "Apa saja mata kuliah pilihan?",
+                "What are the elective courses?",
+                "mata kuliah pilihan",
+                "elective courses",
             ],
         )
 
+    def test_a_rewrite_equal_to_the_question_is_not_searched_twice(self):
+        self.assertEqual(clean_queries("tujuan ITS", "ID: Tujuan ITS\nEN: x"), ["tujuan ITS"])
+
     def test_the_search_budget_is_capped(self):
-        generated = "\n".join(f"Pertanyaan nomor {index} tentang apa?" for index in range(9))
+        generated = "\n".join(f"KEY: kata kunci nomor {index}" for index in range(9))
         self.assertEqual(len(clean_queries("Asli?", generated)), 4)
 
     def test_a_failed_generator_leaves_the_original_question_searchable(self):
@@ -195,6 +201,71 @@ class QueryAugmentationTests(unittest.TestCase):
         augmenter.openai = Mock()
         augmenter.openai.client.chat.completions.create.side_effect = RuntimeError("down")
         self.assertEqual(augmenter.augment("Berapa anggaran?"), ["Berapa anggaran?"])
+
+
+class MultiQueryRerankTests(unittest.TestCase):
+    def reranker(self):
+        from rag.llm.re_rank import ReRanking
+
+        reranker = object.__new__(ReRanking)
+        reranker.model = Mock()
+        # Scores an English passage well only against the English rewrite.
+        reranker.model.predict.side_effect = lambda batch: [
+            0.9 if query.startswith("What") and "elective" in text else 0.1
+            for query, text in batch
+        ]
+        return reranker
+
+    def test_a_passage_keeps_its_best_score_across_rewrites(self):
+        pairs = [["Apa mata kuliah pilihan?", "LIST OF ELECTIVE COURSES elective", {}]]
+        ranked = self.reranker().rank(
+            pairs=pairs,
+            top_results=1,
+            queries=["Apa mata kuliah pilihan?", "What are the elective courses?"],
+        )
+        self.assertEqual(ranked[0][2]["rerank_score"], 0.9)
+
+    def test_the_original_question_alone_is_scored_as_before(self):
+        pairs = [["Apa mata kuliah pilihan?", "LIST OF ELECTIVE COURSES elective", {}]]
+        ranked = self.reranker().rank(pairs=pairs, top_results=1)
+        self.assertEqual(ranked[0][2]["rerank_score"], 0.1)
+
+
+class AugmentationDefaultTests(unittest.TestCase):
+    def service(self):
+        from app.services.retrieval_service import RetrievalService
+
+        collections = Mock()
+        augmenter = Mock()
+        augmenter.augment.return_value = ["q"]
+        qdrant = Mock()
+        qdrant.search.return_value = []
+        embedding = Mock()
+        embedding.encode.return_value = [0.1]
+        return RetrievalService(collections, qdrant, augmenter, None, embedding), augmenter
+
+    def payload(self):
+        return Mock(collection_id=uuid4(), question_text="q")
+
+    def test_an_unset_request_follows_the_setting(self):
+        from app.core.config import settings
+
+        service, augmenter = self.service()
+        with unittest.mock.patch.object(settings, "QUERY_AUGMENTATION", True):
+            service.retrieve(self.payload(), using_augment_query=None)
+        augmenter.augment.assert_called_once()
+        service, augmenter = self.service()
+        with unittest.mock.patch.object(settings, "QUERY_AUGMENTATION", False):
+            service.retrieve(self.payload(), using_augment_query=None)
+        augmenter.augment.assert_not_called()
+
+    def test_an_explicit_request_overrides_the_setting(self):
+        from app.core.config import settings
+
+        service, augmenter = self.service()
+        with unittest.mock.patch.object(settings, "QUERY_AUGMENTATION", True):
+            service.retrieve(self.payload(), using_augment_query=False)
+        augmenter.augment.assert_not_called()
 
 
 class IngestionCoverageTests(unittest.TestCase):
