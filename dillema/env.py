@@ -36,10 +36,12 @@ def apply_env_file(path: Path) -> None:
 def env_file_candidates() -> list[Path]:
     repo = Path(__file__).resolve().parents[1]
     cwd = Path.cwd()
+    # The repository .env is the single config file. apps/.env is read last,
+    # only for keys it still holds from before the move.
     ordered = [
         cwd / ".env",
-        cwd / "apps" / ".env",
         repo / ".env",
+        cwd / "apps" / ".env",
         repo / "apps" / ".env",
     ]
     seen: set[Path] = set()

@@ -12,7 +12,7 @@ Then run CLI commands with `uv run` (for example `uv run dillema serve ...`) or 
 
 ## Single Device
 
-Reads `LLM_MODEL` and `LLM_MODEL_SOURCE` from `apps/.env` (or `.env` in the current directory). Starts a local Ray head if none is running. Does not start the web dashboard.
+Reads `LLM_MODEL` and `LLM_MODEL_SOURCE` from the repository `.env` (or `.env` in the current directory); a legacy `apps/.env` is still read for keys missing there. Starts a local Ray head if none is running. Does not start the web dashboard.
 
 ```bash
 uv run dillema serve

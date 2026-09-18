@@ -73,7 +73,7 @@ These are research/benchmarking artifacts, **not** part of the shipped package (
 
 ## apps/ (dashboard)
 
-A **self-contained RAG dashboard** (`rag-template` package metadata, originally from `https://github.com/robbypambudi/RAGforge.git`), vendored into this repo with its own `pyproject.toml`, `uv.lock`, and `.env`. It is the *consumer* side: a Retrieval-Augmented Generation app that talks to an OpenAI-compatible LLM endpoint (via `langchain-openai` `ChatOpenAI`) — the same kind of endpoint `dillema serve` exposes.
+A **self-contained RAG dashboard** (`rag-template` package metadata, originally from `https://github.com/robbypambudi/RAGforge.git`), vendored into this repo with its own `pyproject.toml` and `uv.lock`; configuration comes from the single repository `.env` (see below). It is the *consumer* side: a Retrieval-Augmented Generation app that talks to an OpenAI-compatible LLM endpoint (via `langchain-openai` `ChatOpenAI`) — the same kind of endpoint `dillema serve` exposes.
 
 It was previously a git submodule; it is now a plain directory at `apps/`, so edits are tracked directly by this repo and no longer sync with the upstream RAGforge repo. It has its own toolchain (`uv`, Ruff) and is excluded from both the DiLLeMa Python package build and the `Dockerfile` image.
 
@@ -83,10 +83,12 @@ It was previously a git submodule; it is now a plain directory at `apps/`, so ed
 - **Frontend:** React + TypeScript + Vite + Tailwind in `web/` (port 3000).
 - **Infra:** `docker-compose.yml` brings up Postgres (5432) and Qdrant (6333/6334).
 
+**Configuration:** one `.env` at the repository root (template `.env.example`) is read by the `dillema` CLI (`dillema/env.py`), the API (`app/core/config.py`) and the web app (`web/vite.config.ts` sets `envDir` to the repo root and maps `BACKEND_URL` → `VITE_BACKEND_URL`; empty means same-origin `/api` via the Vite proxy). A legacy `apps/.env` is still read for missing keys, with a warning; `apps/web/.env` is ignored.
+
 ### Running it (from `apps/`)
 
 ```bash
-cp .env.example .env
+cp ../.env.example ../.env
 uv sync
 docker compose up -d                   # Postgres + Qdrant
 uv run alembic upgrade head             # DB migrations
@@ -98,7 +100,7 @@ cd web && npm install && npm run dev    # frontend on :3000
 
 Classic layered design wired by **`dependency-injector`**:
 
-- **`app/`** — `main.py` builds a singleton `App` that constructs `app/core/container.py::Container` (the DI graph: DB, Qdrant client, embedding model, repositories, services, pipeline). Request flow is `api/v1/endpoints/*` → `controllers/` → `services/` → `repositories/` (over `models/`). Config is Pydantic-settings in `app/core/config.py` (reads `../../.env`; `SQLALCHEMY_DATABASE_URI` is computed from `POSTGRES_*`).
+- **`app/`** — `main.py` builds a singleton `App` that constructs `app/core/container.py::Container` (the DI graph: DB, Qdrant client, embedding model, repositories, services, pipeline). Request flow is `api/v1/endpoints/*` → `controllers/` → `services/` → `repositories/` (over `models/`). Config is Pydantic-settings in `app/core/config.py` (reads the repository `.env`, then legacy `apps/.env`; `SQLALCHEMY_DATABASE_URI` is computed from `POSTGRES_*`).
 - **`app/pipeline/pipeline_service.py`** — document ingestion: reads PDF/DOCX (DOCX via `pypandoc`, auto-downloads pandoc)/text, then cleans → chunks → embeds → stores in Qdrant.
 - **`rag/`** — the reusable RAG core, independent of the web layer: `embedding/` (factory pattern), `llm/` (`chat_model.py` OpenAI chat, `re_rank.py`), `nlp/` (`doc_chunking.py`, `doc_cleaner.py`, `query.py`), and `qdrant/` + `chroma/` vector-store clients.
 - **`agents/augment_query_generated.py`** — query augmentation/expansion using OpenAI (`OPENAI_API_KEY`).

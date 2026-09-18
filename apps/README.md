@@ -45,8 +45,8 @@ boundaries, request lifecycle rules and verification commands.
 ## Quick Start
 
 ```sh
-# Copy environment file
-cp .env.example .env
+# One .env for the whole repository (CLI, this API and the web app)
+cp ../.env.example ../.env
 
 # Install dependencies
 uv sync

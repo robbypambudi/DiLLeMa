@@ -109,7 +109,7 @@ def cmd_serve(args):
     model_source = args.model_source or model_source_from_env()
     if not model_id or not model_source:
         sys.exit(
-            "Model is not configured. Set LLM_MODEL and LLM_MODEL_SOURCE in apps/.env "
+            "Model is not configured. Set LLM_MODEL and LLM_MODEL_SOURCE in .env "
             "(or pass --model-id and --model-source)."
         )
 
@@ -275,7 +275,7 @@ def main():
     serve_parser.add_argument(
         "--model-id",
         default=None,
-        help="Model identifier (default: LLM_MODEL from apps/.env)",
+        help="Model identifier (default: LLM_MODEL from .env)",
     )
     serve_parser.add_argument(
         "--model-source",

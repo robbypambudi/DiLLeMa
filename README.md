@@ -123,7 +123,7 @@ If `.venv` is not activated, prefix commands with `uv run` (for example `uv run 
 
 ### Single Device Deployment
 
-`dillema serve` reads `LLM_MODEL` and `LLM_MODEL_SOURCE` from `apps/.env` and starts a local Ray head if needed. The web dashboard is a separate command (`dillema dashboard`).
+`dillema serve` reads `LLM_MODEL` and `LLM_MODEL_SOURCE` from the repository `.env` (copy `.env.example`; it is the single config file for the CLI, the dashboard API and the web app) and starts a local Ray head if needed. The web dashboard is a separate command (`dillema dashboard`).
 
 ```bash
 uv run dillema serve
@@ -204,7 +204,7 @@ dillema stop
 
 #### `dillema serve`
 - `-d`, `--detach`: Run in the background with output saved to a log
-- `--model-id`: Model identifier (default: `LLM_MODEL` in `apps/.env`)
+- `--model-id`: Model identifier (default: `LLM_MODEL` in `.env`)
 - `--model-source`: HuggingFace model path (default: `LLM_MODEL_SOURCE` or `TEXT_GENERATION_MODEL`)
 - `--min-replicas`: Minimum replicas (default: 1)
 - `--max-replicas`: Maximum replicas (default: 1)

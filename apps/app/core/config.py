@@ -16,24 +16,41 @@ def parse_cors(v: Any) -> list[str] | str:
     raise ValueError(v)
 
 
+# One .env for the whole repository (DiLLeMa/.env): the serving CLI, this API
+# and the web app all read it. apps/.env is still honoured for installs that
+# predate the move, but the repository file wins.
+APPS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+REPO_ENV_FILE = os.path.join(os.path.dirname(APPS_DIR), ".env")
+LEGACY_ENV_FILE = os.path.join(APPS_DIR, ".env")
+
+
 def load_env() -> None:
-    """
-    Load environment variables from .env file
+    """Load the repository .env, then the legacy apps/.env for missing keys.
+
+    Variables already set in the process environment always take precedence.
     """
     from dotenv import load_dotenv
-    import os
 
-    env_path = os.path.join(os.path.dirname(__file__), "../../.env")
-    load_dotenv(env_path)
-    logging.log(1, f"Loaded environment variables from {env_path}")
+    for path in (REPO_ENV_FILE, LEGACY_ENV_FILE):
+        if not os.path.isfile(path):
+            continue
+        load_dotenv(path, override=False)
+        if path == LEGACY_ENV_FILE:
+            logging.warning(
+                "Reading legacy %s; move its settings into %s", path, REPO_ENV_FILE
+            )
 
 
 load_env()
 
 
 class Settings(BaseSettings):
+    # load_env() has already exported both files; listed here as well so the
+    # repository file is also what pydantic-settings resolves (later wins).
     model_config = SettingsConfigDict(
-        env_file="../../.env", env_ignore_empty=True, extra="ignore"
+        env_file=(LEGACY_ENV_FILE, REPO_ENV_FILE),
+        env_ignore_empty=True,
+        extra="ignore",
     )
 
     FILE_PATH: ClassVar["str"] = os.path.dirname(__file__) + "/../files"

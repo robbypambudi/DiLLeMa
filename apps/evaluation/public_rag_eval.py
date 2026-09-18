@@ -24,7 +24,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-# Experiments must not inherit database/model/feature choices from apps/.env.
+# Experiments must not inherit database/model/feature choices from the .env.
 for key, value in {
     "POSTGRES_SERVER": "localhost",
     "POSTGRES_USER": "evaluation",

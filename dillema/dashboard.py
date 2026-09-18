@@ -192,7 +192,10 @@ def start_dashboard(args) -> None:
             _ensure_npm_deps(web)
             npm = shutil.which("npm")
             env = os.environ.copy()
-            env["VITE_BACKEND_URL"] = f"http://127.0.0.1:{api_port}"
+            # The browser's API URL comes from BACKEND_URL in the repository
+            # .env (vite.config.ts maps it); empty means same-origin `/api`.
+            # The proxy behind `/api` runs on this machine, so loopback is right.
+            env["DILLEMA_API_PROXY_TARGET"] = f"http://127.0.0.1:{api_port}"
             print(f"Starting DiLLeMa web on :{web_port}…")
             procs.append(
                 subprocess.Popen(

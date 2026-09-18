@@ -38,3 +38,25 @@ def test_load_dillema_env_disables_uv_run_workers(monkeypatch):
     monkeypatch.delenv("RAY_ENABLE_UV_RUN_RUNTIME_ENV", raising=False)
     load_dillema_env()
     assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
+
+
+def test_repository_env_is_read_before_the_legacy_apps_env(tmp_path, monkeypatch):
+    from dillema import env
+
+    repo = tmp_path / "repo"
+    (repo / "dillema").mkdir(parents=True)
+    (repo / "apps").mkdir()
+    (repo / ".env").write_text("LLM_MODEL=from-root\n", encoding="utf-8")
+    (repo / "apps" / ".env").write_text(
+        "LLM_MODEL=from-apps\nLLM_MODEL_SOURCE=legacy/only\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(env, "__file__", str(repo / "dillema" / "env.py"))
+    monkeypatch.chdir(tmp_path)
+    for key in ("LLM_MODEL", "LLM_MODEL_SOURCE"):
+        monkeypatch.delenv(key, raising=False)
+
+    env.load_dillema_env()
+
+    assert os.environ["LLM_MODEL"] == "from-root"
+    # A key only the old file still holds keeps working until it is moved.
+    assert os.environ["LLM_MODEL_SOURCE"] == "legacy/only"

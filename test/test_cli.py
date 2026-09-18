@@ -132,3 +132,33 @@ def test_dashboard_env_is_synced_even_when_a_venv_exists(tmp_path, monkeypatch):
     monkeypatch.setattr(dashboard.subprocess, "run", run)
     dashboard._ensure_project(tmp_path)
     assert run.call_args.args[0] == ["uv", "sync"]
+
+
+def test_web_proxy_targets_the_started_api_without_pinning_the_browser_url(
+    tmp_path, monkeypatch
+):
+    # The browser calls VITE_BACKEND_URL; forcing 127.0.0.1 there would send a
+    # remote viewer to their own machine. Only the server-side proxy is set.
+    monkeypatch.delenv("VITE_BACKEND_URL", raising=False)
+    monkeypatch.setattr(dashboard, "find_dashboard", lambda: tmp_path)
+    for name in ("_ensure_project", "_ensure_migrations", "_ensure_npm_deps"):
+        monkeypatch.setattr(dashboard, name, lambda path: None)
+    monkeypatch.setattr(dashboard, "_port_open", lambda host, port: False)
+    monkeypatch.setattr(dashboard, "_uvicorn_cmd", lambda *args: ["api"])
+    monkeypatch.setattr(dashboard.shutil, "which", lambda name: name)
+    popen = Mock(return_value=Mock(poll=Mock(return_value=None)))
+    monkeypatch.setattr(dashboard.subprocess, "Popen", popen)
+    monkeypatch.setattr(dashboard, "_stop", Mock())
+    monkeypatch.setattr(
+        dashboard.time, "sleep", lambda _: signal.raise_signal(signal.SIGTERM)
+    )
+
+    dashboard.start_dashboard(
+        SimpleNamespace(
+            api_host="0.0.0.0", api_port=8081, web_port=3000, no_docker=True
+        )
+    )
+
+    web_env = popen.call_args_list[-1].kwargs["env"]
+    assert "VITE_BACKEND_URL" not in web_env
+    assert web_env["DILLEMA_API_PROXY_TARGET"] == "http://127.0.0.1:8081"
