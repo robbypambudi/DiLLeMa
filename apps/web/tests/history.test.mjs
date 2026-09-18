@@ -68,15 +68,17 @@ test('active conversations are isolated between guest and different accounts', (
 
 test('API turns restore question/answer order including failures and partial answers', () => {
   const { messages: _, ...summary } = conversation()
+  const cited = [{ index: 1, file_id: 'file-1', file_name: 'a.pdf', pages: [3], quote: 'q', snippets: [] }]
   const restored = fromResponse({ ...summary, turns: [
-    { question_text: 'First', answer: '<p>First answer</p>', status: 'completed' },
+    { question_text: 'First', answer: '<p>First answer</p>', status: 'completed', sources: cited },
     { question_text: 'Second', answer: 'Partial answer', status: 'interrupted' },
   ] })
   assert.deepEqual(restored.messages, [
     { role: 'user', content: 'First' },
-    { role: 'assistant', content: '<p>First answer</p>', status: 'completed' },
+    { role: 'assistant', content: '<p>First answer</p>', status: 'completed', sources: cited },
     { role: 'user', content: 'Second' },
-    { role: 'assistant', content: 'Partial answer', status: 'interrupted' },
+    // A turn saved before citations were stored restores without any.
+    { role: 'assistant', content: 'Partial answer', status: 'interrupted', sources: [] },
   ])
   assert.equal(conversationCollection(restored).id, 'collection-1')
   assert.equal(conversationCollection({ ...restored, collection_id: null }), null)

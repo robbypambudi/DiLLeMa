@@ -1,9 +1,30 @@
 import type { Collection } from '@/features/collections/types'
 
+export interface SourceSnippet {
+  page: number | null
+  /** The number printed on that page, when it differs from the index. */
+  page_label?: string | null
+  quote: string
+}
+
+/** A cited document, as [S1] in the answer refers to it. */
+export interface SourceRef {
+  index: number
+  file_id: string | null
+  file_name: string
+  /** Physical page indices; what the viewer scrolls to. */
+  pages: number[]
+  /** Printed labels aligned with `pages`; what the reader is told. */
+  page_labels?: (string | null)[]
+  quote: string
+  snippets: SourceSnippet[]
+}
+
 export interface Message {
   role: 'user' | 'assistant'
   content: string
   status?: 'pending' | 'completed' | 'failed' | 'interrupted'
+  sources?: SourceRef[]
 }
 
 export interface ChatState {
@@ -34,6 +55,7 @@ export interface ConversationResponse extends ConversationSummary {
     sequence: number
     question_text: string
     answer: string
+    sources?: SourceRef[]
     status: NonNullable<Message['status']>
   }[]
 }

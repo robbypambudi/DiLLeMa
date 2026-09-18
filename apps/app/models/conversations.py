@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 import sqlalchemy as sa
-from sqlmodel import Field
+from sqlmodel import Column, Field, JSON
 
 from app.models import BaseModel
 
@@ -53,6 +53,8 @@ class ConversationTurns(BaseModel, table=True):
     sequence: int
     question_text: str = Field(sa_type=sa.Text)
     answer: str = Field(default="", sa_type=sa.Text)
+    # Cited files with page + quote, so a reopened chat can still open its PDFs.
+    sources: list = Field(default_factory=list, sa_column=Column(JSON, nullable=False, server_default="[]"))
     status: str = Field(default="pending", max_length=16)
     created_at: datetime = Field(
         default_factory=utcnow, sa_type=sa.DateTime(timezone=True)

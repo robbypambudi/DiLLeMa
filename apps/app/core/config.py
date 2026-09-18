@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     QDRANT_PORT: int = 6333
     EMBED_MODEL_NAME: str = "intfloat/multilingual-e5-base"
     RERANK_MODEL_NAME: str = "BAAI/bge-reranker-v2-m3"
+    # Cross-encoder relevance floor (sigmoid, 0..1). Evidence below this is
+    # dropped, so an out-of-corpus question gets "not enough information"
+    # instead of an answer built on the least-bad chunk. Calibrate per corpus.
+    RERANK_MIN_SCORE: float = Field(default=0.05, ge=0.0, le=1.0)
 
     KG_ENABLED: bool = False
     KG_LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")

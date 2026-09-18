@@ -81,8 +81,10 @@ export function CollectionDocuments({ files, uploading, uploadFiles, retry, onDe
                         : '—'}
                     </td>
                     <td className="space-x-2 whitespace-nowrap">
-                      {file.status === 'failed' && (
-                        <Button size="sm" variant="outline" onClick={() => retry(file)}>Retry</Button>
+                      {(file.status === 'failed' || file.status === 'completed') && (
+                        <Button size="sm" variant="outline" onClick={() => retry(file)}>
+                          {file.status === 'failed' ? 'Retry' : 'Reindex'}
+                        </Button>
                       )}
                       <Button size="sm" variant="destructive" onClick={() => onDelete(file)}>Delete</Button>
                     </td>

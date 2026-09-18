@@ -2,16 +2,14 @@
 
 from collections import Counter
 from hashlib import blake2b
-import re
 
 from qdrant_client.models import SparseVector
 
-_TOKEN = re.compile(r"[A-Za-zÀ-ÿ0-9]+")
+from rag.nlp.tokens import stems, tokenize
+
 _VOCAB = 2_147_483_647  # max signed 32-bit, Qdrant sparse index range
 
-
-def tokenize(text: str) -> list[str]:
-    return [token.lower() for token in _TOKEN.findall(text or "") if len(token) > 1]
+__all__ = ["encode_sparse", "term_index", "tokenize"]
 
 
 def term_index(token: str) -> int:
@@ -21,7 +19,9 @@ def term_index(token: str) -> int:
 
 def encode_sparse(text: str) -> SparseVector:
     counts: Counter[int] = Counter()
-    for token in tokenize(text):
+    # Indexed and queried through the same stemmer, so "penetapan" finds
+    # "ditetapkan". Changing that setting requires reindexing the collection.
+    for token in stems(text):
         counts[term_index(token)] += 1
     items = sorted(counts.items())
     return SparseVector(

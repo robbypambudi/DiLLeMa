@@ -4,7 +4,7 @@ import uuid
 from loguru import logger
 
 from app.core.config import settings
-from app.core.exceptions import ConflictError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.models.files import Files
 from app.repositories.collections_repository import CollectionsRepository
 from app.repositories.files_repository import FilesRepository
@@ -77,9 +77,18 @@ class FilesService(BaseService):
         self.files_repository.update_attr(file_id, "status", status)
 
     def retry(self, file_id: uuid.UUID) -> Files:
+        """Re-run ingestion for a failed file, or reindex a finished one.
+
+        Parsing, chunking and lexical terms change with the indexing code, and a
+        document indexed by an older version keeps answering from the chunks it
+        was built with. Reindexing is idempotent: chunk ids are derived from the
+        file id, and the old points are deleted first.
+        """
         file_row = self.files_repository.read_by_id(file_id)
-        if file_row.status != "failed":
-            raise ConflictError(detail="Only failed files can be retried.")
+        if file_row.status not in {"failed", "completed"}:
+            raise ConflictError(
+                detail="Only failed or finished files can be reindexed."
+            )
         collection = self.collections_repository.read_by_id(file_row.collection_id)
         self.qdrant_client.delete_points_by_file_id(
             collection.vectordb_collection_name,
@@ -94,6 +103,18 @@ class FilesService(BaseService):
                 "metadatas": {},
             },
         )
+
+    def get_stored_file(self, file_id: uuid.UUID) -> Files:
+        """The row plus a verified on-disk path, for serving the original document."""
+        file_row = self.files_repository.read_by_id(file_id)
+        path = os.path.realpath(file_row.file_path or "")
+        root = os.path.realpath(str(settings.FILE_PATH))
+        # Paths are generated server-side, but serving bytes by id deserves a
+        # check that the row still points inside the upload directory.
+        if os.path.commonpath([path, root]) != root or not os.path.isfile(path):
+            raise NotFoundError(detail="The stored document is no longer available.")
+        file_row.file_path = path
+        return file_row
 
     def delete_file(self, file_id: uuid.UUID) -> None:
         file_row = self.files_repository.read_by_id(file_id)

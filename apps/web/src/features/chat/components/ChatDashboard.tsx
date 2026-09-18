@@ -1,3 +1,4 @@
+import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, BookOpen } from 'lucide-react'
 import logoLight from '../../../../assets/logo-light.png'
 import logoDark from '../../../../assets/logo-dark.png'
@@ -12,12 +13,33 @@ import { ChatHistory } from './ChatHistory'
 import { CollectionSelector } from '@/features/collections/components/CollectionSelector'
 import { ThemeToggle } from '@/shared/components/ThemeToggle'
 import { Button } from '@/shared/components/ui/Button'
+import type { SourceRef } from '../types'
+
+// pdf.js is large and only a citation click needs it.
+const SourcePanel = lazy(() =>
+  import('@/features/sources/components/SourcePanel').then((module) => ({ default: module.SourcePanel }))
+)
 
 export function ChatDashboard() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const { state: appState, newChat } = useChat()
   const { theme, toggleTheme } = useTheme()
+  const [activeSource, setActiveSource] = useState<{ messageIndex: number; source: SourceRef } | null>(null)
+
+  const openSource = useCallback(
+    (source: SourceRef, messageIndex: number) => setActiveSource({ messageIndex, source }),
+    []
+  )
+  const closeSource = useCallback(() => setActiveSource(null), [])
+  // Switching conversations retires whatever document the old one had open.
+  useEffect(() => { setActiveSource(null) }, [appState.conversationId])
+  useEffect(() => {
+    if (!activeSource) return
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeSource() }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [activeSource, closeSource])
 
   return (
     <div className="flex h-[100dvh] flex-col bg-background">
@@ -80,10 +102,16 @@ export function ChatDashboard() {
               <p className="text-xs text-muted-foreground">{appState.selectedCollection ? 'Ask questions about this collection' : 'Choose a collection to get started'}</p>
             </div>
           </div>
-          {appState.isRestoring ? <p role="status" className="flex-1 p-6 text-sm text-muted-foreground">Opening conversation…</p> : <ChatWindow />}
+          {appState.isRestoring ? <p role="status" className="flex-1 p-6 text-sm text-muted-foreground">Opening conversation…</p> : <ChatWindow onOpenSource={openSource} activeSource={activeSource} />}
           {appState.conversationId && !appState.selectedCollection && <p className="border-t px-5 py-3 text-sm text-muted-foreground">This collection is no longer available. You can still read or export this conversation.</p>}
           <ChatInput />
         </main>
+
+        {activeSource && (
+          <Suspense fallback={<aside className="fixed inset-0 z-50 flex items-center justify-center bg-background p-6 text-sm text-muted-foreground md:static md:z-auto md:w-[26rem] md:shrink-0 md:border-l lg:w-[34rem]">Menyiapkan penampil dokumen…</aside>}>
+            <SourcePanel source={activeSource.source} onClose={closeSource} />
+          </Suspense>
+        )}
       </div>
     </div>
   )

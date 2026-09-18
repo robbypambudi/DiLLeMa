@@ -4,7 +4,7 @@ import { errorMessage } from '@/shared/lib/errors'
 import { conversationsApi, streamAnswer } from '../api'
 import { conversationCollection, conversationTitle, fromResponse } from '../lib/history'
 import { readActiveConversation, readGuestHistory, writeActiveConversation, writeGuestHistory } from '../lib/historyStorage'
-import type { ChatState, Conversation, ConversationSummary, Message } from '../types'
+import type { ChatState, Conversation, ConversationSummary, Message, SourceRef } from '../types'
 
 const initialState: ChatState = {
   selectedCollection: null, conversationId: null, messages: [],
@@ -161,9 +161,10 @@ export function useChatSession(userId: string | null, ready: boolean) {
     let conversationId = current.conversationId
     let guestConversation: Conversation | undefined
     let answer = ''
+    let sources: SourceRef[] = []
     const showAnswer = (status: NonNullable<Message['status']>) => {
       if (!mounted.current) return
-      const nextMessages: Message[] = [...messages, { role: 'assistant', content: answer, status }]
+      const nextMessages: Message[] = [...messages, { role: 'assistant', content: answer, status, sources }]
       patchState({ messages: nextMessages })
       if (guestConversation) saveGuest({ ...guestConversation, messages: nextMessages, updated_at: new Date().toISOString() })
     }
@@ -185,8 +186,9 @@ export function useChatSession(userId: string | null, ready: boolean) {
       patchState({ conversationId })
       rememberActive(conversationId)
       showAnswer('pending')
-      for await (const delta of streamAnswer(current.selectedCollection.id, question, controller.signal, userId ? conversationId! : undefined)) {
-        answer += delta
+      for await (const event of streamAnswer(current.selectedCollection.id, question, controller.signal, userId ? conversationId! : undefined)) {
+        if (event.kind === 'sources') sources = event.sources
+        else answer += event.text
         showAnswer('pending')
       }
       answer ||= 'No response received.'

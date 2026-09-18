@@ -1,8 +1,10 @@
 """HTTP compatibility and resource lifetime without external services or models."""
 
 import os
+import tempfile
 import threading
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 from uuid import uuid4
@@ -17,6 +19,7 @@ os.environ.setdefault("POSTGRES_DB", "test")
 from app.application import create_app
 from app.core.container import Container
 from app.core.dependencies import get_current_user
+from app.core.exceptions import NotFoundError
 
 
 class ApplicationTests(unittest.TestCase):
@@ -132,6 +135,36 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["data"]["status"], "pending")
         self.pipeline.run_pipeline.assert_called_once_with(document)
+
+    def test_cited_document_is_served_inline_for_the_source_panel(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / "renstra.pdf"
+        path.write_bytes(b"%PDF-1.7\nbody")
+        file_id = uuid4()
+        self.files.get_stored_file.return_value = SimpleNamespace(
+            id=file_id,
+            file_name="renstra.pdf",
+            file_path=str(path),
+            file_type="application/pdf",
+        )
+        with TestClient(self.app) as client:
+            response = client.get(f"/api/v1/files/{file_id}/raw")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.content, b"%PDF-1.7\nbody")
+        self.assertEqual(response.headers["content-type"], "application/pdf")
+        # Inline, so the viewer renders it instead of the browser downloading it.
+        self.assertIn("inline", response.headers["content-disposition"])
+        self.files.get_stored_file.assert_called_once_with(file_id)
+
+    def test_missing_cited_document_is_not_confused_with_its_metadata_route(self):
+        self.files.get_stored_file.side_effect = NotFoundError(
+            detail="The stored document is no longer available."
+        )
+        with TestClient(self.app) as client:
+            response = client.get(f"/api/v1/files/{uuid4()}/raw")
+        self.assertEqual(response.status_code, 404)
+        self.files.get_by_id.assert_not_called()
 
 
 if __name__ == "__main__":

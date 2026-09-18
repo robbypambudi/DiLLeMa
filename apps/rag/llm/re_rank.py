@@ -16,9 +16,21 @@ class ReRanking:
         self.model_name = model_name or DEFAULT_RERANK_MODEL
         self.model = CrossEncoder(self.model_name, device=embedding_device())
 
-    def rank(self, top_results: int = 3, pairs: list = None) -> list:
+    def rank(
+        self, top_results: int = 3, pairs: list = None, min_score: float | None = None
+    ) -> list:
+        """Rank pairs, dropping any the cross-encoder scores below `min_score`.
+
+        Scores are sigmoid outputs in 0..1. Without a floor, a question the
+        corpus cannot answer still returns its least-bad chunks and the model
+        answers from them; an empty result is what lets the caller say so.
+        """
         if not pairs:
             raise ValueError("Pairs cannot be None or empty.")
         scores = self.model.predict([pair[:2] for pair in pairs])
         sorted_pairs = sorted(zip(scores, pairs), key=lambda x: x[0], reverse=True)
+        if min_score is not None:
+            sorted_pairs = [
+                item for item in sorted_pairs if float(item[0]) >= min_score
+            ]
         return [pair for _, pair in sorted_pairs[:top_results]]

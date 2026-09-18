@@ -2,6 +2,7 @@
 
 import asyncio
 import importlib.util
+import json
 import os
 import tempfile
 import unittest
@@ -100,6 +101,16 @@ class HistoryFixture(unittest.TestCase):
         self.chat = Mock()
         self.chat.chat.return_value = "The answer."
         self.chat.format_sources.return_value = "\nSource: document.pdf"
+        self.chat.source_items.return_value = [
+            {
+                "index": 1,
+                "file_id": "3f1f0d4c-6b3e-4a1c-9e2f-2f1d6b0a7c55",
+                "file_name": "document.pdf",
+                "pages": [4],
+                "quote": "A cited sentence.",
+                "snippets": [{"page": 4, "quote": "A cited sentence."}],
+            }
+        ]
 
         async def stream(**_):
             yield "The "
@@ -230,15 +241,37 @@ class HistoryGenerationTests(HistoryFixture):
 
         async def consume():
             return [
-                item["data"]
-                async for item in self.service.question_stream(self.payload, turn)
+                item async for item in self.service.question_stream(self.payload, turn)
             ]
 
-        chunks = asyncio.run(consume())
+        events = asyncio.run(consume())
+        chunks = [item["data"] for item in events if "event" not in item]
+        cited = [item for item in events if item.get("event") == "sources"]
         saved = self.detail()["turns"][0]
         self.assertEqual(saved["status"], "completed")
         self.assertEqual(saved["answer"], "".join(chunks))
+        # Citation metadata travels beside the answer, not inside it, so the
+        # rendered source list is not repeated in the answer text.
+        self.assertNotIn("Source: document.pdf", saved["answer"])
+        self.assertNotIn("Sumber konteks", saved["answer"])
+        self.assertEqual(
+            json.loads(cited[0]["data"]), self.chat.source_items.return_value
+        )
+        self.assertEqual(saved["sources"], self.chat.source_items.return_value)
+
+    def test_stream_falls_back_to_a_rendered_list_without_citation_metadata(self):
+        self.chat.source_items.return_value = []
+        turn = self.start()
+
+        async def consume():
+            return [
+                item async for item in self.service.question_stream(self.payload, turn)
+            ]
+
+        events = asyncio.run(consume())
+        saved = self.detail()["turns"][0]
         self.assertIn("Source: document.pdf", saved["answer"])
+        self.assertEqual([item for item in events if "event" in item], [])
 
     def test_model_failure_keeps_partial_answer(self):
         async def failing(**_):
@@ -396,13 +429,19 @@ class HistoryApiTests(HistoryFixture):
 
 class HistoryMigrationTests(unittest.TestCase):
     def test_upgrade_and_downgrade_preserve_existing_tables(self):
-        path = (
-            Path(__file__).parents[1]
-            / "migrations/versions/c3d4e5f6a702_conversation_history.py"
-        )
-        spec = importlib.util.spec_from_file_location("history_migration", path)
-        migration = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(migration)
+        def load(name):
+            path = Path(__file__).parents[1] / "migrations/versions" / name
+            spec = importlib.util.spec_from_file_location(path.stem, path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+
+        # The tables are built by one revision and extended by the next; the
+        # models must match the end of that chain, not its first step.
+        chain = [
+            load("c3d4e5f6a702_conversation_history.py"),
+            load("d4e5f6a70311_turn_sources.py"),
+        ]
         engine = sa.create_engine("sqlite://")
         self.addCleanup(engine.dispose)
         with engine.begin() as conn:
@@ -415,7 +454,8 @@ class HistoryMigrationTests(unittest.TestCase):
                 )
             )
             with Operations.context(MigrationContext.configure(conn)):
-                migration.upgrade()
+                for migration in chain:
+                    migration.upgrade()
                 for model in (Conversations, ConversationTurns):
                     self.assertEqual(
                         {
@@ -426,7 +466,8 @@ class HistoryMigrationTests(unittest.TestCase):
                         },
                         set(model.__table__.columns.keys()),
                     )
-                migration.downgrade()
+                for migration in reversed(chain):
+                    migration.downgrade()
                 self.assertEqual(
                     set(sa.inspect(conn).get_table_names()), {"users", "collections"}
                 )

@@ -95,9 +95,9 @@ V2-02 and V2-03 establish evidence for selecting models and capacity. V2-04 impr
 From repository root, using the existing dashboard environment:
 
 ```bash
-PYTHONPATH=apps apps/.venv/bin/python -m unittest discover -s apps/tests -v
-PYTHONPATH=apps apps/.venv/bin/python -m knowledge.migrate --sql
-apps/.venv/bin/python -m compileall -q apps/knowledge apps/app apps/rag apps/migrations
+uv run --directory apps python -m unittest discover -s tests -v
+uv run --directory apps python -m knowledge.migrate --sql
+uv run --directory apps python -m compileall -q knowledge app rag migrations
 git diff --check
 ```
 

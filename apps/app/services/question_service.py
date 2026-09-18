@@ -1,3 +1,4 @@
+import json
 from functools import cached_property
 from uuid import UUID
 
@@ -71,7 +72,11 @@ class QuestionsService(BaseService):
         )
 
     def _save_answer(
-        self, payload: CreateQuestion, answer: str, turn_id: UUID | None = None
+        self,
+        payload: CreateQuestion,
+        answer: str,
+        turn_id: UUID | None = None,
+        sources: list | None = None,
     ):
         question = Questions(
             question_id=payload.question_id,
@@ -80,7 +85,9 @@ class QuestionsService(BaseService):
             collection_id=payload.collection_id,
         )
         if turn_id is not None:
-            self.conversations_repository.finish_turn(turn_id, answer, "completed")
+            self.conversations_repository.finish_turn(
+                turn_id, answer, "completed", sources or []
+            )
             return question
         return self.question_repository.create(question)
 
@@ -108,10 +115,13 @@ class QuestionsService(BaseService):
             else "Maaf, saya tidak memiliki informasi yang cukup untuk menjawab pertanyaan ini."
         )
         response = OpenAIChat.strip_source_footer(response)
-        sources = self.openai_chat.format_sources(re_ranked_pairs)
-        if sources:
-            response += sources
-        return self._save_answer(payload, response, turn_id)
+        # Attribution reads the finished answer, so the footer is built from the
+        # stripped text -- a model-written source list must not count as a citation.
+        sources = self.openai_chat.source_items(re_ranked_pairs, response)
+        footer = self.openai_chat.format_sources(re_ranked_pairs, response)
+        if footer:
+            response += footer
+        return self._save_answer(payload, response, turn_id, sources)
 
     async def question_stream(
         self, payload: CreateQuestion, turn_id: UUID | None = None
@@ -120,6 +130,7 @@ class QuestionsService(BaseService):
         Stream the question and answer pairs.
         """
         accumulated_answer = ""
+        sources: list = []
         status = "interrupted"
         try:
             re_ranked_pairs = await run_in_threadpool(
@@ -135,19 +146,34 @@ class QuestionsService(BaseService):
                     if chunk:
                         accumulated_answer += chunk
                         yield {"data": chunk}
-                sources = self.openai_chat.format_sources(re_ranked_pairs)
-                had_footer = "sumber konteks" in accumulated_answer.lower()
+                # The client lists the cited files itself, so a rendered footer
+                # inside the answer would only repeat them.
                 accumulated_answer = OpenAIChat.strip_source_footer(accumulated_answer)
-                if sources:
-                    accumulated_answer += sources
-                    if not had_footer:
-                        yield {"data": sources}
+                # Only the sources the finished answer cites, with quotes chosen
+                # against what it claims.
+                sources = self.openai_chat.source_items(
+                    re_ranked_pairs, accumulated_answer
+                )
+                if not sources:
+                    footer = self.openai_chat.format_sources(
+                        re_ranked_pairs, accumulated_answer
+                    )
+                    if footer:
+                        accumulated_answer += footer
+                        yield {"data": footer}
+                else:
+                    # A named event keeps the citation metadata out of the answer
+                    # text the client is concatenating.
+                    yield {
+                        "event": "sources",
+                        "data": json.dumps(sources, ensure_ascii=False),
+                    }
             else:
                 accumulated_answer = "Maaf, saya tidak memiliki informasi yang cukup untuk menjawab pertanyaan ini."
                 yield {"data": accumulated_answer}
 
             await run_in_threadpool(
-                self._save_answer, payload, accumulated_answer, turn_id
+                self._save_answer, payload, accumulated_answer, turn_id, sources
             )
             status = "completed"
         except Exception as e:
@@ -165,6 +191,7 @@ class QuestionsService(BaseService):
                         turn_id,
                         accumulated_answer,
                         status,
+                        sources,
                     )
 
     def clear_all(self):

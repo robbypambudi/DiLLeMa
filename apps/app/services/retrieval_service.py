@@ -10,6 +10,44 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.schema.question_schema import CreateQuestion
 
+MAX_PAGES_FOR_GENERATOR = 4
+
+
+def pack_parent_pages(pairs: list, max_pages: int = MAX_PAGES_FOR_GENERATOR) -> list:
+    """Search on leaf chunks; send one parent page per hit to the generator."""
+    packed = []
+    seen = set()
+    for pair in pairs:
+        meta = dict(pair[2] if len(pair) > 2 else {})
+        file_id = str(meta.get("file_id") or meta.get("file_name") or "")
+        key = (file_id, meta.get("page"), meta.get("claim_id"))
+        if key in seen:
+            continue
+        seen.add(key)
+        parent = str(meta.get("page_text") or "").strip()
+        quote = str(meta.get("quote") or "").strip()
+        body = parent or str(pair[1] or "")
+        if parent and quote and quote not in parent:
+            body = f"{quote}\n\n{parent}"
+        packed.append([pair[0], body, meta])
+        if len(packed) >= max_pages:
+            break
+    return packed
+
+
+def format_graph_evidence(item: dict) -> str:
+    lines = [f"Klaim: {item.get('statement') or ''}"]
+    qualifiers = item.get("qualifiers")
+    if qualifiers:
+        lines.append(f"Kualifikasi: {json.dumps(qualifiers, ensure_ascii=False)}")
+    quote = item.get("quote") or ""
+    if quote:
+        lines.append(f"Kutipan: {quote}")
+    source = item.get("text") or ""
+    if source and source != quote:
+        lines.append(f"Teks sumber: {source[:1200]}")
+    return "\n".join(lines)
+
 
 class RetrievalService:
     def __init__(
@@ -44,7 +82,7 @@ class RetrievalService:
         return ReRanking()
 
     def retrieve(self, payload: CreateQuestion, using_augment_query=False):
-        """Combine vector and approved graph evidence, retaining source metadata."""
+        """Hybrid leaf retrieval, then parent-page packing for generation."""
         collection = self.collections_repository.read_by_id(payload.collection_id)
         if not collection:
             raise NotFoundError(
@@ -91,20 +129,12 @@ class RetrievalService:
                     limit=settings.KG_RETRIEVAL_LIMIT,
                 )
                 for item in evidence:
-                    context = json.dumps(
-                        {
-                            "claim": item["statement"],
-                            "qualifiers": item["qualifiers"],
-                            "quote": item["quote"],
-                            "source_text": item["text"],
-                        },
-                        ensure_ascii=False,
-                    )
                     candidates["graph:" + str(item["id"])] = [
                         payload.question_text,
-                        context,
+                        format_graph_evidence(item),
                         {
                             "file_name": item["file_name"],
+                            "file_id": str(item.get("file_id") or ""),
                             "page": item["page"],
                             "quote": item["quote"],
                             "claim_id": str(item["id"]),
@@ -120,4 +150,16 @@ class RetrievalService:
         pairs = list(candidates.values())
         if not pairs:
             return []
-        return self.re_ranking.rank(pairs=pairs, top_results=6 if graph_used else 5)
+        ranked = self.re_ranking.rank(
+            pairs=pairs,
+            top_results=12 if graph_used else 8,
+            min_score=settings.RERANK_MIN_SCORE,
+        )
+        if not ranked:
+            logger.info(
+                "No evidence cleared the relevance floor ({}) for collection {}",
+                settings.RERANK_MIN_SCORE,
+                payload.collection_id,
+            )
+            return []
+        return pack_parent_pages(ranked)

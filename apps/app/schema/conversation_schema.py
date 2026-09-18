@@ -27,12 +27,33 @@ class ConversationSummary(HistoryTimestamps):
     title: str
 
 
+class SourceSnippet(BaseModel):
+    page: int | None = None
+    page_label: str | None = None
+    quote: str = ""
+
+
+class SourceRef(BaseModel):
+    """A cited document, as the chat panel needs it to open the original PDF."""
+
+    index: int
+    file_id: str | None = None
+    file_name: str
+    # Physical indices the viewer scrolls to, and the labels printed on those
+    # pages, in the same order. Turns stored before labels existed have none.
+    pages: list[int] = []
+    page_labels: list[str | None] = []
+    quote: str = ""
+    snippets: list[SourceSnippet] = []
+
+
 class ConversationTurn(HistoryTimestamps):
     id: UUID
     question_id: str
     sequence: int
     question_text: str
     answer: str
+    sources: list[SourceRef] = []
     status: Literal["pending", "completed", "failed", "interrupted"]
 
 

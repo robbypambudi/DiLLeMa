@@ -112,7 +112,7 @@ Apply the additive migration before starting the updated backend:
 
 ```bash
 cd apps
-.venv/bin/python -m alembic upgrade head
+uv run alembic upgrade head
 ```
 
 Revision `c3d4e5f6a702` adds the two history tables without changing existing data.
@@ -150,6 +150,16 @@ Backend rules:
 - Repository context managers own database sessions. There is no endpoint-level
   session cleanup hook. Application startup/shutdown owns the database engine;
   cleanup must also happen if startup fails.
+- Attribute citations from the finished answer, not from retrieval. Report only
+  the sources whose `[Sn]` marker the answer wrote, keeping each source's
+  original number so the markers still resolve; an answer with no markers
+  reports the best-ranked source alone. Quotes are chosen at citation time
+  against the claim that cites them and must stay verbatim slices of the page,
+  because the viewer highlights a quote by searching the rendered page for it.
+- Cite the page label printed on the page and navigate by the physical index.
+  `pages` carries the index, `page_labels` the label, in the same order.
+- Evidence scoring below `RERANK_MIN_SCORE` is dropped, and empty retrieval must
+  reach the user as "not enough information" rather than an unsupported answer.
 - Preserve URL paths, payloads, response envelopes, authorization and source
   metadata during structural refactors. Central exception handlers retain
   `{ "errors": [{ "field": "...", "message": "..." }] }` for validation failures.
@@ -168,7 +178,7 @@ uv run python -m unittest discover -s tests -v
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
-With the existing environment, use `.venv/bin/python -m unittest discover -s tests -v`.
+With the existing environment, use `uv run python -m unittest discover -s tests -v`.
 The suite uses SQLite and fake model/service boundaries. PostgreSQL concurrency
 tests run only when `KG_TEST_DATABASE_URL` points to a disposable test database;
 otherwise they are reported as skipped. Live model and browser end-to-end checks

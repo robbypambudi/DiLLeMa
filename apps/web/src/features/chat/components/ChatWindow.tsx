@@ -1,13 +1,21 @@
 import { useEffect, useRef } from 'react'
+import type { SourceRef } from '../types'
 import { useChat } from '../hooks/useChat'
 import { cn } from '@/shared/lib/utils'
 import { copyToClipboard, downloadChatHtml } from '../lib/exportChat'
+import { formatPages } from '../lib/sources'
 import { HtmlRenderer } from './HtmlRenderer'
 import { Button } from '@/shared/components/ui/Button'
 
-import { BookOpen, Copy, FileDown, MessageSquare } from 'lucide-react'
+import { BookOpen, Copy, FileDown, FileText, MessageSquare } from 'lucide-react'
 
-export function ChatWindow() {
+interface ChatWindowProps {
+  onOpenSource?: (source: SourceRef, messageIndex: number) => void
+  /** Which answer the open document came from; every answer numbers its own [Sn]. */
+  activeSource?: { messageIndex: number; source: SourceRef } | null
+}
+
+export function ChatWindow({ onOpenSource, activeSource }: ChatWindowProps) {
   const { state: { messages, isLoading, selectedCollection } } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -52,7 +60,11 @@ export function ChatWindow() {
               {message.role === 'assistant' ? (
                 message.content ? (
                   <div>
-                    <HtmlRenderer content={message.content} />
+                    <HtmlRenderer
+                      content={message.content}
+                      sources={message.sources}
+                      onCitationClick={onOpenSource && ((source) => onOpenSource(source, index))}
+                    />
                     {(isLoading || message.status === 'pending') && index === messages.length - 1 && (
                       <span className="ml-0.5 inline-block h-4 w-1 translate-y-0.5 animate-pulse bg-current" aria-hidden />
                     )}
@@ -78,12 +90,40 @@ export function ChatWindow() {
               <p className="mt-1 text-xs text-muted-foreground">{message.status === 'interrupted' ? 'Generation was interrupted. This is a partial answer.' : 'Generation failed. You can send the question again.'}</p>
             )}
 
+            {message.role === 'assistant' && !!message.sources?.length && onOpenSource && (
+              <div className="mt-2 flex max-w-[95%] flex-wrap gap-1.5 sm:max-w-[85%]">
+                {message.sources.map((source) => {
+                  const open =
+                    activeSource?.messageIndex === index && activeSource.source.index === source.index
+                  return (
+                  <button
+                    key={source.index}
+                    type="button"
+                    onClick={() => onOpenSource(source, index)}
+                    aria-pressed={open}
+                    title={source.pages.length ? `${source.file_name} — ${formatPages(source)}` : source.file_name}
+                    className={cn(
+                      'inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
+                      open
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-surface text-muted-foreground hover:border-primary hover:text-foreground'
+                    )}
+                  >
+                    <FileText className="h-3 w-3 shrink-0 text-primary" />
+                    <span className="font-semibold text-primary">S{source.index}</span>
+                    <span className="truncate">{source.file_name}</span>
+                  </button>
+                  )
+                })}
+              </div>
+            )}
+
             {message.role === 'assistant' && (
               <div className="mt-2 flex gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => copyToClipboard(message.content)}
+                  onClick={() => copyToClipboard(message.content, message.sources)}
                   aria-label="Copy answer"
                   title="Copy answer"
                   className="h-6 px-2 text-xs"

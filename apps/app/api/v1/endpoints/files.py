@@ -2,9 +2,10 @@ import uuid
 
 from dependency_injector.wiring import Provide
 from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi.responses import FileResponse
 
 from app.core.container import Container
-from app.core.dependencies import get_current_user, require_admin
+from app.core.dependencies import get_current_user, get_optional_user, require_admin
 from app.core.middleware import inject
 from app.models.users import Users
 from app.pipeline.pipeline_service import PipelineService
@@ -75,6 +76,24 @@ def delete(
     return BaseResponse(
         message="File deleted successfully",
         data=None,
+    )
+
+
+@router.get("/{file_id}/raw", tags=["get"])
+@inject
+def raw(
+    file_id: uuid.UUID,
+    _user: Users | None = Depends(get_optional_user),
+    service: FilesService = Depends(Provide[Container.files_service]),
+):
+    """Serve the original document so the chat can show the cited page."""
+    file_row = service.get_stored_file(file_id)
+    return FileResponse(
+        file_row.file_path,
+        media_type=file_row.file_type or "application/octet-stream",
+        filename=file_row.file_name,
+        content_disposition_type="inline",
+        headers={"Cache-Control": "private, max-age=3600"},
     )
 
 

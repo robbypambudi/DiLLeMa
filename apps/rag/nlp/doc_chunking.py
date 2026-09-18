@@ -24,12 +24,15 @@ class DocumentChunker:
 
     def chunk_sections(
         self,
-        sections: list[tuple[int | None, str, str]],
+        sections: list,
         file_name: str = "",
     ) -> list[dict]:
         """Index leaf chunks with page metadata. Retrieve on the leaf, cite the page."""
         chunks: list[dict] = []
-        for page, section, text in sections:
+        for unit in sections:
+            page, section, text = unit[0], unit[1], unit[2]
+            # Markdown and DOCX sections carry no printed page label.
+            page_label = unit[3] if len(unit) > 3 else None
             body = (text or "").strip()
             if not body:
                 continue
@@ -39,7 +42,7 @@ class DocumentChunker:
                     continue
                 label_parts = [file_name] if file_name else []
                 if page is not None:
-                    label_parts.append(f"halaman {page}")
+                    label_parts.append(f"halaman {page_label or page}")
                 if section:
                     label_parts.append(section)
                 prefix = f"[{', '.join(label_parts)}]\n" if label_parts else ""
@@ -47,8 +50,10 @@ class DocumentChunker:
                     {
                         "text": f"{prefix}{quote}",
                         "page": page,
+                        "page_label": page_label,
                         "section": section or "",
                         "quote": quote[:350],
+                        "page_text": body[:5000],
                     }
                 )
         return chunks

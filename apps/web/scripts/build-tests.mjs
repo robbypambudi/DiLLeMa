@@ -18,6 +18,8 @@ await build({
         client: `${root}src/shared/api/client.ts`,
         sse: `${root}src/shared/api/sse.ts`,
         history: `${root}src/features/chat/lib/history.ts`,
+        citations: `${root}src/features/chat/lib/citations.ts`,
+        sources: `${root}src/features/chat/lib/sources.ts`,
         historyStorage: `${root}src/features/chat/lib/historyStorage.ts`,
       },
       output: { entryFileNames: '[name].mjs' },

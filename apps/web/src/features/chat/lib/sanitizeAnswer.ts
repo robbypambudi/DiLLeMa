@@ -1,9 +1,13 @@
 import DOMPurify from 'dompurify'
+import type { SourceRef } from '../types'
+import { linkCitations } from './citations'
 import { formatAnswer } from './formatAnswer'
-import { collapseDuplicateSources } from './sources'
+import { collapseDuplicateSources, dropSourceFooter } from './sources'
 
-export function sanitizeAnswer(content: string): string {
-  const formatted = formatAnswer(collapseDuplicateSources(content))
+export function sanitizeAnswer(content: string, sources: SourceRef[] = []): string {
+  const cited = new Set(sources.map((source) => source.index))
+  const body = sources.length ? dropSourceFooter(content) : content
+  const formatted = linkCitations(formatAnswer(collapseDuplicateSources(body)), cited)
 
   return typeof window !== 'undefined'
       ? DOMPurify.sanitize(formatted, {
@@ -26,8 +30,9 @@ export function sanitizeAnswer(content: string): string {
             'h6',
             'div',
             'span',
+            'button',
           ],
-          ALLOWED_ATTR: ['type', 'class'],
+          ALLOWED_ATTR: ['type', 'class', 'title', 'data-citation'],
         })
       : formatted
 

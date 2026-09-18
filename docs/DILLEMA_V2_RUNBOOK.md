@@ -26,8 +26,8 @@ The model name must match the serving endpoint. Choose a model that can follow t
 Preview migration SQL, then apply migrations to the intended application database:
 
 ```bash
-.venv/bin/python -m knowledge.migrate --sql
-.venv/bin/python -m knowledge.migrate
+uv run python -m knowledge.migrate --sql
+uv run python -m knowledge.migrate
 ```
 
 The new revision follows `a1b2c3d4e5f6`. It creates `kg_profiles`, `kg_jobs`, `kg_documents`, `kg_chunks`, `kg_entities`, `kg_claims`, and `kg_aliases`. Parent files/collections/users must come from the existing migration chain. The preview renders the full upgrade chain from base; the actual command applies only unapplied revisions.
@@ -44,13 +44,13 @@ Restart the backend with its normal command and build/start the frontend as usua
 6. Start the worker in a separate process:
 
 ```bash
-.venv/bin/python -m knowledge.worker
+uv run python -m knowledge.worker
 ```
 
 To process at most one queued job:
 
 ```bash
-.venv/bin/python -m knowledge.worker --once
+uv run python -m knowledge.worker --once
 ```
 
 The worker uses a 300-second lease. Each model request has a 120-second timeout with SDK retries disabled; validation permits one repair attempt. A crashed job becomes available after lease expiry, up to three lease acquisitions. Completed chunk results are reused when source/profile/model/output-format/prompt/pipeline/parser provenance and the parsed chunks match. A job explicitly marked failed requires re-enqueueing; this starts a new extraction generation.
@@ -61,7 +61,9 @@ If the job remains queued, check that a worker is running against the same datab
 
 Review each extracted claim together with its source text, conditions, exceptions, and scope. **Approve** only when the source supports the complete claim. Reject unsupported interpretations even when their quotation exists verbatim.
 
-Chat combines existing vector evidence with approved graph claims from that collection. It reranks candidates, passes original text and qualifiers, and includes source labels/locations in the answer. The source footer identifies the context supplied to the model; it does not independently certify every generated claim.
+Chat combines existing vector evidence with approved graph claims from that collection. It reranks candidates, passes original text and qualifiers, and includes source labels/locations in the answer. Evidence the reranker scores below `RERANK_MIN_SCORE` (default 0.05, sigmoid 0..1) is discarded; when nothing clears the floor the question is answered with "not enough information" instead of the least-bad chunk. Raise the floor if answers cite weak sources, lower it if valid questions go unanswered.
+
+Only the sources the answer actually marks with `[Sn]` are listed, each excerpted at the sentence on that page which best matches the claim citing it, and cited by the page number printed on the page. The source list identifies the context the model used; it does not independently certify every generated claim.
 
 `merge_by_name` controls exact-name linking across documents. Default `[]` scopes identities to each file. For a domain where program/organization names are unique, explicitly set `["Program", "Organization"]`. People cannot opt into this name-only merge. Aliases must appear in the source and can seed retrieval; fuzzy matching and entity merge/split review are future work.
 
@@ -106,9 +108,9 @@ The latest local run passed 44 tests and skipped 23 opt-in PostgreSQL tests. The
 From `apps/`:
 
 ```bash
-.venv/bin/python -m knowledge.smoke --output /tmp/dillema-v2-smoke.json
+uv run python -m knowledge.smoke --output /tmp/dillema-v2-smoke.json
 # When supported by the serving endpoint:
-KG_EXTRACTION_FORMAT=json_schema .venv/bin/python -m knowledge.smoke --output /tmp/dillema-v2-structured.json
+KG_EXTRACTION_FORMAT=json_schema uv run python -m knowledge.smoke --output /tmp/dillema-v2-structured.json
 ```
 
 This sends the fictional `knowledge/examples/pilot.txt` to the configured extraction endpoint. It does not require `KG_ENABLED=true`, start a worker, or write to a database. It checks the four annotated relations and exact expected qualifiers from `pilot.expected.json`. Exit status is nonzero for extraction errors, missing claims, or missing qualifiers. The checks are deliberately small and deterministic; they do not replace semantic review or a representative benchmark.
@@ -121,7 +123,7 @@ From repository root, with access to Docker Compose:
 
 ```bash
 docker compose -p dillema-kg-tests -f apps/tests/compose.knowledge.yml up -d --wait
-KG_TEST_DATABASE_URL=postgresql+psycopg2://kg_test:kg_test_local_only@127.0.0.1:55439/kg_test PYTHONPATH=apps apps/.venv/bin/python -m unittest discover -s apps/tests -p test_knowledge_postgres.py -v
+KG_TEST_DATABASE_URL=postgresql+psycopg2://kg_test:kg_test_local_only@127.0.0.1:55439/kg_test uv run --directory apps python -m unittest discover -s tests -p test_knowledge_postgres.py -v
 docker compose -p dillema-kg-tests -f apps/tests/compose.knowledge.yml down
 ```
 

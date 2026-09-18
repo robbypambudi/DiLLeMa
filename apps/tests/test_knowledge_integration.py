@@ -1,4 +1,5 @@
 import asyncio
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -121,9 +122,12 @@ class QuestionIntegrationTests(unittest.TestCase):
         self.embedding = Mock()
         self.embedding.encode.return_value = SimpleNamespace(tolist=lambda: [0.1])
         self.reranker = Mock()
-        self.reranker.rank.side_effect = lambda pairs, top_results: pairs[:top_results]
+        self.reranker.rank.side_effect = (
+            lambda pairs, top_results, min_score=None: pairs[:top_results]
+        )
         self.chat = Mock()
         self.chat.format_sources = OpenAIChat.format_sources
+        self.chat.source_items = OpenAIChat.source_items
         self.chat.chat.return_value = "Jawaban [S1]"
 
         async def stream(**_):
@@ -147,19 +151,21 @@ class QuestionIntegrationTests(unittest.TestCase):
     def test_stream_saved_answer_equals_sent_content(self):
         from app.core.config import settings
 
+        cited = []
+
         async def collect():
-            return "".join(
-                [
-                    item["data"]
-                    async for item in self.service.question_stream(self.payload)
-                ]
-            )
+            text = []
+            async for item in self.service.question_stream(self.payload):
+                (cited if item.get("event") == "sources" else text).append(item["data"])
+            return "".join(text)
 
         with patch.object(settings, "KG_ENABLED", False):
             answer = asyncio.run(collect())
         self.assertEqual(self.questions.create.call_args.args[0].answer, answer)
-        self.assertIn("source.txt", answer)
         self.assertIn("Jawaban [S1]", answer)
+        # The file reaches the client as citation metadata, not as answer text.
+        self.assertNotIn("source.txt", answer)
+        self.assertEqual(json.loads(cited[0])[0]["file_name"], "source.txt")
 
     def test_graph_evidence_reaches_generation_with_qualifiers(self):
         from app.core.config import settings
@@ -175,6 +181,9 @@ class QuestionIntegrationTests(unittest.TestCase):
                 "file_name": "rules.pdf",
             }
         ]
+        # Only sources the answer cites are reported, so the claim has to be
+        # the one the answer points at.
+        self.chat.chat.return_value = "Jawaban [S1] dan aturannya [S2]"
         with patch.object(settings, "KG_ENABLED", True):
             result = self.service.question_no_stream(self.payload)
         pairs = self.chat.chat.call_args.kwargs["context_pairs"]
@@ -231,12 +240,24 @@ class IngestionIntegrationTests(unittest.TestCase):
     def test_upload_queues_extraction_after_completed_status(self):
         from app.core.config import settings
         from app.pipeline.pipeline_service import PipelineService
+        from rag.nlp.doc_parse import Section
 
         files = Mock()
         files.get_collection_name.return_value = "Pilot"
         files.get_vectordb_collection_name.return_value = "pilot"
         chunks = SimpleNamespace(
-            chunk_text=lambda _: [TEXT], chunk_size=1000, chunk_overlap=100
+            chunk_sections=lambda sections, file_name="": [
+                {
+                    "text": TEXT,
+                    "page": 1,
+                    "page_label": None,
+                    "section": "",
+                    "quote": TEXT[:350],
+                    "page_text": TEXT,
+                }
+            ],
+            chunk_size=1000,
+            chunk_overlap=100,
         )
         knowledge = Mock()
         knowledge.get_profile.return_value = SimpleNamespace(enabled=True)
@@ -258,7 +279,10 @@ class IngestionIntegrationTests(unittest.TestCase):
         knowledge.enqueue.side_effect = enqueue
         with (
             patch.object(settings, "KG_ENABLED", True),
-            patch("app.pipeline.pipeline_service.read_file", return_value=TEXT),
+            patch(
+                "app.pipeline.pipeline_service.read_sections",
+                return_value=[Section(1, "", TEXT)],
+            ),
         ):
             pipeline.run_pipeline(source)
         knowledge.enqueue.assert_called_once_with(source.collection_id, source.id)

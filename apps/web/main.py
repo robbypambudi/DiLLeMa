@@ -145,7 +145,7 @@ class ChatBotApp:
                         "question_id": f"{self.user_id}_{self.collection_id}_{int(time.time())}",
                         "question_text": user_input,
                         "collection_id": self.collection_id,
-                        "using_augment_query": True,
+                        "using_augment_query": False,
                     },
                     stream=True,
                     timeout=60,

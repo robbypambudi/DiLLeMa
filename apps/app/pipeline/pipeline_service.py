@@ -79,8 +79,10 @@ class PipelineService:
                     "file_name": files.file_name,
                     "file_id": str(files.id),
                     "page": item["page"],
+                    "page_label": item.get("page_label"),
                     "section": item["section"],
                     "quote": item["quote"],
+                    "page_text": item["page_text"],
                 }
                 for item in chunks
             ]

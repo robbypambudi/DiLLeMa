@@ -1,14 +1,18 @@
-import type { Message } from '../types'
+import type { Message, SourceRef } from '../types'
 import { sanitizeAnswer } from './sanitizeAnswer'
+import { renderSourceFooter } from './sources'
 
 function escapeHtml(text: string) {
   return text.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!))
 }
 
-const prepareHtml = (content: string) => sanitizeAnswer(content)
+// An export is read on its own, so the cited files are written back in as a
+// list: there is no source panel to open from a saved file or a pasted answer.
+const prepareHtml = (content: string, sources: SourceRef[] = []) =>
+  sanitizeAnswer(content, sources) + renderSourceFooter(sources)
 
-export const copyToClipboard = (content: string) => {
-    const html = prepareHtml(content)
+export const copyToClipboard = (content: string, sources: SourceRef[] = []) => {
+    const html = prepareHtml(content, sources)
     const text = html
       .replace(/<\/p>/gi, '\n\n')
       .replace(/<li>/gi, '\n- ')
@@ -51,7 +55,7 @@ ${messages.map(msg => `
   <div class="message ${msg.role}">
     <div class="bubble">
       <div class="role">${msg.role === 'user' ? 'You' : 'Assistant'}:</div>
-      <div>${msg.role === 'assistant' ? prepareHtml(msg.content) : escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+      <div>${msg.role === 'assistant' ? prepareHtml(msg.content, msg.sources) : escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
     </div>
   </div>
 `).join('')}

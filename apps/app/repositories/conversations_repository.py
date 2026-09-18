@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from contextlib import AbstractContextManager
 from datetime import timedelta
 from typing import Callable
@@ -125,7 +127,9 @@ class ConversationsRepository:
             session.refresh(turn)
             return turn.id
 
-    def finish_turn(self, turn_id: UUID, answer: str, status: str) -> None:
+    def finish_turn(
+        self, turn_id: UUID, answer: str, status: str, sources: list | None = None
+    ) -> None:
         with self.session_factory() as session:
             conversation_id = (
                 session.query(ConversationTurns.conversation_id)
@@ -150,6 +154,8 @@ class ConversationsRepository:
             if turn.status != "pending":
                 return
             turn.answer = answer
+            if sources is not None:
+                turn.sources = sources
             turn.status = status
             turn.updated_at = utcnow()
             conversation.updated_at = turn.updated_at

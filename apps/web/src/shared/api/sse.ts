@@ -1,19 +1,35 @@
+export interface SseEvent {
+  /** The event name, defaulting to "message" as the SSE spec requires. */
+  event: string
+  data: string
+}
+
 /** Decode SSE events across arbitrary network boundaries, including split CRLF. */
 export function createSseParser() {
   let pending = ''
   let data: string[] = []
+  let name = ''
   let skipLf = false
 
-  return (chunk: string, flush = false): string[] => {
-    const events: string[] = []
+  return (chunk: string, flush = false): SseEvent[] => {
+    const events: SseEvent[] = []
     const emit = () => {
-      if (data.length) events.push(data.join('\n'))
+      if (data.length) events.push({ event: name || 'message', data: data.join('\n') })
       data = []
+      name = ''
+    }
+    const field = (line: string): [string, string] => {
+      const colon = line.indexOf(':')
+      if (colon === -1) return [line, '']
+      return [line.slice(0, colon), line.slice(colon + 1).replace(/^ /, '')]
     }
     const line = () => {
       if (pending === '') emit()
-      else if (pending === 'data') data.push('')
-      else if (pending.startsWith('data:')) data.push(pending.slice(5).replace(/^ /, ''))
+      else if (!pending.startsWith(':')) {
+        const [key, value] = field(pending)
+        if (key === 'data') data.push(value)
+        else if (key === 'event') name = value
+      }
       pending = ''
     }
 
@@ -35,7 +51,7 @@ export function createSseParser() {
   }
 }
 
-export async function* readSseStream(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+export async function* readSseStream(body: ReadableStream<Uint8Array>): AsyncGenerator<SseEvent> {
   const reader = body.getReader()
   const decoder = new TextDecoder()
   const parse = createSseParser()

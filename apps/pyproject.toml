@@ -100,7 +100,16 @@ dependencies = [
     "wheel==0.45.1",
     "yarl==1.18.3",
     "zstandard==0.23.0",
+    "sastrawi>=1.0.1",
+    "pymupdf>=1.28.2",
 ]
+
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+package = true
 
 [tool.setuptools.packages.find]
 include = ["rag*", "app*", "agents*", "knowledge*"]

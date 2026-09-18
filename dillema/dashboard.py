@@ -73,22 +73,52 @@ def _ensure_npm_deps(web: Path) -> None:
             sys.exit("npm install failed")
 
 
+def _uv() -> str:
+    uv = shutil.which("uv")
+    if not uv:
+        sys.exit("uv not found. Install uv, then run `uv sync` in apps/.")
+    return uv
+
+
 def _app_env(root: Path) -> dict[str, str]:
     env = os.environ.copy()
-    venv = root / ".venv"
-    if venv.is_dir():
-        env["VIRTUAL_ENV"] = str(venv)
-        env["PATH"] = str(venv / "bin") + os.pathsep + env.get("PATH", "")
-        env.pop("UV_PROJECT", None)
-        env.pop("UV_PROJECT_ENVIRONMENT", None)
+    # Isolate from the root DiLLeMa uv project (ray/vllm).
+    env.pop("UV_PROJECT", None)
+    env.pop("UV_PROJECT_ENVIRONMENT", None)
+    env.pop("VIRTUAL_ENV", None)
+    env["UV_PROJECT"] = str(root)
+    env["UV_PROJECT_ENVIRONMENT"] = str(root / ".venv")
     return env
 
 
+def _uv_run(root: Path, *args: str) -> list[str]:
+    return [_uv(), "run", "--directory", str(root), *args]
+
+
+def _ensure_project(root: Path) -> None:
+    if (root / ".venv" / "bin" / "python").is_file():
+        return
+    print("Syncing dashboard environment with uv…")
+    if subprocess.run([_uv(), "sync"], cwd=root, env=_app_env(root)).returncode != 0:
+        sys.exit("uv sync failed in apps/. Fix the environment, then retry.")
+
+
+def _ensure_migrations(root: Path) -> None:
+    print("Applying database migrations…")
+    result = subprocess.run(
+        _uv_run(root, "python", "-m", "alembic", "upgrade", "head"),
+        cwd=root,
+        env=_app_env(root),
+    )
+    if result.returncode != 0:
+        print("! alembic upgrade failed; API may error until you run:")
+        print("  uv run --directory apps python -m alembic upgrade head")
+
+
 def _uvicorn_cmd(root: Path, host: str, port: int) -> list[str]:
-    # Use `python -m uvicorn` so stale console-script shebangs
-    # (e.g. apps/RAGforge/.venv after the folder move) still work.
-    venv_python = root / ".venv" / "bin" / "python"
-    args = [
+    return _uv_run(
+        root,
+        "python",
         "-m",
         "uvicorn",
         "app.main:app",
@@ -101,13 +131,7 @@ def _uvicorn_cmd(root: Path, host: str, port: int) -> list[str]:
         str(root / "app"),
         "--reload-dir",
         str(root / "rag"),
-    ]
-    if venv_python.is_file():
-        return [str(venv_python), *args]
-    uv = shutil.which("uv")
-    if uv:
-        return [uv, "run", "--directory", str(root), "python", *args]
-    sys.exit("apps/.venv is missing. Run `uv sync` in apps/.")
+    )
 
 
 def _stop(procs: list[subprocess.Popen]) -> None:
@@ -138,6 +162,8 @@ def start_dashboard(args) -> None:
 
     if not args.no_docker:
         _ensure_docker(root)
+    _ensure_project(root)
+    _ensure_migrations(root)
 
     procs: list[subprocess.Popen] = []
     try:

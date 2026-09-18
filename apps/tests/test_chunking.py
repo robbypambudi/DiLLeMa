@@ -21,6 +21,7 @@ class ChunkingTests(unittest.TestCase):
         self.assertIn("Visi ITS", page_one["text"])
         self.assertNotIn("prudent", page_one["text"])
         self.assertEqual(page_one["section"], "Pendahuluan")
+        self.assertIn("Visi ITS", page_one["page_text"])
 
     def test_plain_text_still_chunks_without_page(self):
         chunker = DocumentChunker(chunk_size=20, chunk_overlap=0)

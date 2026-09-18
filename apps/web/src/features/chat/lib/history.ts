@@ -7,7 +7,7 @@ export function fromResponse(response: ConversationResponse): Conversation {
     ...summary,
     messages: turns.flatMap((turn) => [
       { role: 'user' as const, content: turn.question_text },
-      { role: 'assistant' as const, content: turn.answer, status: turn.status },
+      { role: 'assistant' as const, content: turn.answer, status: turn.status, sources: turn.sources ?? [] },
     ]),
   }
 }

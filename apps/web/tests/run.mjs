@@ -3,3 +3,5 @@
 import './api.test.mjs'
 import './sse.test.mjs'
 import './history.test.mjs'
+import './citations.test.mjs'
+import './sources.test.mjs'

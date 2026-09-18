@@ -1,14 +1,36 @@
 import { apiFetch, apiRequest, readError } from '@/shared/api/client'
 import { readSseStream } from '@/shared/api/sse'
 import type { ApiResponse } from '@/shared/api/types'
-import type { ConversationResponse, ConversationSummary } from './types'
+import type { ConversationResponse, ConversationSummary, SourceRef } from './types'
 
-export async function* streamAnswer(collectionId: string, question: string, signal: AbortSignal, conversationId?: string) {
+export interface AnswerDelta {
+  kind: 'text'
+  text: string
+}
+
+export interface AnswerSources {
+  kind: 'sources'
+  sources: SourceRef[]
+}
+
+/** Citation metadata travels on its own SSE event so it never lands in the answer. */
+function toAnswerEvent(event: { event: string; data: string }): AnswerDelta | AnswerSources | null {
+  if (event.event !== 'sources') return { kind: 'text', text: event.data }
+  try {
+    const parsed = JSON.parse(event.data)
+    return Array.isArray(parsed) ? { kind: 'sources', sources: parsed as SourceRef[] } : null
+  } catch {
+    // A malformed citation list costs the source panel, not the answer.
+    return null
+  }
+}
+
+export async function* streamAnswer(collectionId: string, question: string, signal: AbortSignal, conversationId?: string): AsyncGenerator<AnswerDelta | AnswerSources> {
   const body = new URLSearchParams({
     question_id: `user_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     question_text: question,
     collection_id: collectionId,
-    using_augment_query: 'true',
+    using_augment_query: 'false',
   })
   if (conversationId) body.set('conversation_id', conversationId)
   const response = await apiFetch('/api/v1/questions/stream', {
@@ -18,7 +40,14 @@ export async function* streamAnswer(collectionId: string, question: string, sign
   })
   if (!response.ok) throw new Error(await readError(response))
   if (!response.body) throw new Error('The server did not return a stream.')
-  yield* readSseStream(response.body)
+  for await (const event of readSseStream(response.body)) {
+    const parsed = toAnswerEvent(event)
+    if (parsed) yield parsed
+  }
+}
+
+export function fileRawUrl(fileId: string): string {
+  return `/api/v1/files/${encodeURIComponent(fileId)}/raw`
 }
 
 export const conversationsApi = {

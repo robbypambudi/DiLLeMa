@@ -103,6 +103,16 @@
   .data-table tbody tr {
     @apply transition-colors hover:bg-primary/5;
   }
+
+  /* [S1] markers inside a rendered answer; they open the source panel. */
+  .citation-chip {
+    @apply mx-0.5 inline-flex h-4 min-w-[1.4rem] translate-y-[-1px] items-center justify-center rounded border border-primary/30 bg-primary/10 px-1 align-middle text-[0.65rem] font-semibold leading-none text-primary no-underline transition-colors;
+  }
+
+  .citation-chip:hover,
+  .citation-chip:focus-visible {
+    @apply border-primary bg-primary text-primary-foreground outline-none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
