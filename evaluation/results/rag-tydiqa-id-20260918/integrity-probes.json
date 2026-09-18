@@ -1,0 +1,25 @@
+{
+  "unpaginated_sections": {
+    "input_sections": 2,
+    "retrieved_chunks": 2,
+    "packed_sources": 1,
+    "deadline_preserved": false
+  },
+  "long_parent_truncation": {
+    "source_chars": 6678,
+    "marker_offset": 6646,
+    "retrieved_leaf_has_answer": true,
+    "quote_has_answer": false,
+    "parent_chars": 5000,
+    "packed_has_answer": false
+  },
+  "sparse_term_frequency": {
+    "once": [
+      1.0
+    ],
+    "ten_times": [
+      10.0
+    ],
+    "ratio": 10.0
+  }
+}

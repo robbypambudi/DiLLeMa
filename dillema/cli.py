@@ -92,6 +92,10 @@ def _ensure_ray(address: str | None) -> str:
 
 
 def cmd_serve(args):
+    # Under `uv run`, Ray would otherwise make every worker `uv run` (and sync
+    # dependencies) again. Workers instead use the Python that `ray start`
+    # runs on their own node. Read at import time, so it is set before `ray`.
+    os.environ.setdefault("RAY_ENABLE_UV_RUN_RUNTIME_ENV", "0")
     import ray
     from ray import serve
     from dillema.serve import LLMServe

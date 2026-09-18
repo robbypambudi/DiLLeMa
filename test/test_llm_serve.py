@@ -28,12 +28,11 @@ def test_hf_token_falls_back_to_env(monkeypatch):
     assert s.hf_token == "env-token"
 
 
-def test_worker_runtime_env_uses_current_python():
-    import sys
-
+def test_worker_runtime_env_does_not_pin_the_driver_python():
     s = LLMServe(model_id="m", model_source="src", hf_token="tok")
     env = s._worker_runtime_env({"env_vars": {"GLOO_SOCKET_IFNAME": "eth0"}})
-    assert env["py_executable"] == sys.executable
+    # The driver's interpreter path does not exist on other nodes.
+    assert "py_executable" not in env
     assert env["env_vars"]["VLLM_USE_V1"] == "1"
     assert env["env_vars"]["HF_TOKEN"] == "tok"
     assert env["env_vars"]["GLOO_SOCKET_IFNAME"] == "eth0"

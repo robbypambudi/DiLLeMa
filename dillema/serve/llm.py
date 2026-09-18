@@ -1,5 +1,4 @@
 import os
-import sys
 from ray.serve.llm import LLMConfig, build_openai_app
 
 
@@ -15,9 +14,14 @@ class LLMServe:
         self.app = None
 
     def _worker_runtime_env(self, runtime_env: dict | None) -> dict:
-        """Reuse the driver venv; do not let workers `uv run` and reinstall deps."""
+        """Runtime env shared by the replica and the engine workers it starts.
+
+        No `py_executable`: on a multi-node cluster the driver's interpreter
+        path does not exist on the other nodes, and each node's raylet already
+        runs the Python `dillema head`/`dillema worker` was started with.
+        (`dillema serve` disables Ray's `uv run` propagation instead.)
+        """
         merged = {
-            "py_executable": sys.executable,
             "env_vars": {"VLLM_USE_V1": "1"},
             # Child actors (EngineCore, GPU workers) inherit this runtime env,
             # so the hook reaches the processes that launch Triton kernels.

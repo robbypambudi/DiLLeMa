@@ -1,0 +1,10 @@
+{
+  "distractor_context": {
+    "n": 20,
+    "exact_abstention_rate": 0.15
+  },
+  "empty_context": {
+    "n": 20,
+    "exact_abstention_rate": 0.1
+  }
+}

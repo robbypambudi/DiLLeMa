@@ -1,0 +1,67 @@
+{
+  "current_minus_reference": {
+    "closed_book": {
+      "exact_match": {
+        "difference": 0.35,
+        "paired_bootstrap_95_ci": [
+          0.25,
+          0.45
+        ],
+        "resamples": 10000,
+        "n": 80
+      },
+      "token_f1": {
+        "difference": 0.3984449442839283,
+        "paired_bootstrap_95_ci": [
+          0.30141998020234756,
+          0.49510825981455336
+        ],
+        "resamples": 10000,
+        "n": 80
+      }
+    },
+    "dense_baseline": {
+      "exact_match": {
+        "difference": -0.025,
+        "paired_bootstrap_95_ci": [
+          -0.1,
+          0.0375
+        ],
+        "resamples": 10000,
+        "n": 80
+      },
+      "token_f1": {
+        "difference": 0.0014237012602581617,
+        "paired_bootstrap_95_ci": [
+          -0.08188722462799347,
+          0.07971725579600017
+        ],
+        "resamples": 10000,
+        "n": 80
+      }
+    },
+    "oracle": {
+      "exact_match": {
+        "difference": 0.0,
+        "paired_bootstrap_95_ci": [
+          -0.0375,
+          0.0375
+        ],
+        "resamples": 10000,
+        "n": 80
+      },
+      "token_f1": {
+        "difference": -0.023111658456486044,
+        "paired_bootstrap_95_ci": [
+          -0.06826354679802955,
+          0.02035714285714286
+        ],
+        "resamples": 10000,
+        "n": 80
+      }
+    }
+  },
+  "answer_present_but_not_exact": 49,
+  "answer_present_questions": 78,
+  "note": "Bootstrap resamples questions, not article clusters; intervals are exploratory."
+}

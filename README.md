@@ -262,6 +262,211 @@ The system supports three deployment configurations:
 - **Multi-GPU**: Deploy models across multiple GPUs using tensor parallelism
 - **Multi-node Multi-GPU**: Deploy models across multiple nodes and GPUs using pipeline parallelism
 
+## Evaluasi RAG: chunking, indeks, dan model kecil
+
+Eksperimen lokal **18 September 2026** menguji tujuan DiLLeMa: memberikan bukti
+yang tepat kepada LLM kecil. Hasilnya: pipeline saat ini menyediakan jawaban dari
+sumber acuan pada **156/160 pertanyaan (97,5%)**, tetapi Qwen 0.5B hanya mencapai
+**29/80 exact match (36,25%)**. Kualitas retrieval yang tinggi membantu model,
+namun belum menjamin jawaban yang benar. Ini hasil pilot terukur, bukan klaim
+kesiapan produksi.
+
+### Data dan protokol
+
+- Dataset publik: [TyDi QA](https://huggingface.co/datasets/google-research-datasets/tydiqa),
+  `secondary_task/validation`, bahasa Indonesia, revisi
+  `da78f23f9119363459acbaf46bf89426ff26c259`. Seluruh **565 pertanyaan / 514 konteks
+  unik** dipakai untuk membentuk corpus. Dataset card mencantumkan Apache-2.0.
+- Pertanyaan dibagi berdasarkan **judul artikel**, dengan seed `20260918`:
+  **40 dev**, **160 test**, dan **80 pertanyaan pertama dari test** untuk generasi.
+  Tidak ada konteks sumber bersama antara pertanyaan dev dan test. Corpus tetap
+  mencakup semua 514 konteks; pertanyaan dan label jawaban tidak masuk indeks.
+- Ini adaptasi retrieval atas kumpulan paragraf TyDi QA: satu konteks menjadi satu
+  dokumen dengan satu halaman virtual. Bukan skor resmi TyDi QA, pencarian seluruh
+  Wikipedia, atau evaluasi parsing PDF. Teks jawaban diverifikasi ada di sumber;
+  offset anotasi tidak dipakai karena sebagian tidak cocok dengan slicing Unicode.
+- Komponen aplikasi yang benar-benar dijalankan: `DocumentChunker`,
+  `DefaultEmbedding`, encoder sparse, `QdrantHttpClient`, `ReRanking`, dan
+  `RetrievalService`. Qdrant memakai **mode in-memory / pencarian exact**, tanpa
+  database aplikasi. Kualitas HNSW, payload index server, serta latency jaringan
+  tidak diuji.
+- Embedding: [multilingual-e5-base](https://huggingface.co/intfloat/multilingual-e5-base),
+  768 dimensi, prefix `query:` / `passage:` dan normalisasi L2. Reranker:
+  [bge-reranker-v2-m3](https://huggingface.co/BAAI/bge-reranker-v2-m3).
+  Pool 40 kandidat, 8 hasil rerank, skor minimum 0,05, ambang relatif 0,5,
+  maksimal 4 sumber. Query augmentation dan Knowledge Graph dinonaktifkan agar
+  kontribusi chunking/indexing dapat diperiksa.
+- Generator: [Qwen2.5-0.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct),
+  BF16, greedy decoding, maksimal 64 token, batch 8. Generasi memakai Transformers
+  lokal dengan prompt jawaban ekstraktif yang sama antarkondisi; **bukan** prompt
+  Markdown/sitasi dashboard atau uji serving Ray/vLLM. Tidak ada pemotongan input
+  generator. Mesin: RTX 5090 32 GB, i7-12700, WSL2; PyTorch 2.8.0,
+  Transformers 4.50.0, sentence-transformers 3.4.1, qdrant-client 1.15.1.
+
+**Definisi metrik:** *answer hit* berarti setidaknya satu blok yang diberikan ke
+generator berasal dari konteks acuan **dan** masih mengandung salah satu jawaban
+anotasi. *Source precision* adalah proporsi blok keluaran dari konteks acuan,
+dirata-ratakan per pertanyaan; ini proksi relevansi, bukan penilaian kebenaran
+setiap klaim. Exact match dan token F1 memakai lowercase, normalisasi tanda baca
+serta whitespace, dan jawaban anotasi terbaik. Tidak ada LLM-as-judge.
+
+### Pengaruh chunking pada indeks
+
+Ukuran/overlap berikut dalam **karakter**, bukan token. Baseline fixed memakai
+recursive splitter tanpa enrichment judul; structured memakai chunker produksi
+beserta judul dan aturan struktur. Semua baris memakai corpus dan model yang sama.
+
+| Chunking | Jumlah chunk | Dense: answer hit@4 | Pipeline lengkap: answer hit | Source precision pipeline | Rata-rata karakter konteks pipeline |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Fixed 800 / 120 | 634 | 96,88% | 95,00% | 88,59% | 625 |
+| Structured 400 / 60 | 976 | 97,50% | 97,50% | 92,81% | 647 |
+| **Structured 800 / 120 — konfigurasi saat ini** | **629** | **98,75%** | **97,50%** | **91,61%** | **638** |
+| Structured 1600 / 240 | 527 | 98,75% | 97,50% | 91,93% | 631 |
+
+Structured 400 menghasilkan sekitar **55% lebih banyak vector** dibanding 800,
+tanpa kenaikan answer hit pipeline pada test. Structured 1600 menghasilkan
+sekitar **16% lebih sedikit vector**, dengan answer hit pipeline yang sama;
+hasil corpus paragraf pendek ini belum membuktikan 1600 lebih baik untuk dokumen
+panjang. Tidak ada chunk pada eksperimen ini yang terpotong oleh batas embedding.
+Pemilihan hanya dari dev, berdasarkan answer hit, reciprocal rank, lalu konteks
+terpendek, memilih **structured 800/120 + parent packing**. Jadi eksperimen ini
+tidak memberikan dasar kuat untuk mengganti default ukuran chunk.
+
+### Pengaruh jenis indeks dan penyaringan
+
+Ablasi berikut mempertahankan structured 800/120, dengan 160 pertanyaan test:
+
+| Jalur | Answer hit di pool@40 | Answer hit keluaran | Source precision keluaran | Rata-rata karakter konteks |
+| --- | ---: | ---: | ---: | ---: |
+| Dense, top-4 leaf | 100,00% | 98,75% | 28,91% | 2.039 |
+| Sparse saat ini, top-4 leaf | 96,88% | 93,13% | 26,25% | 2.300 |
+| Dense + sparse RRF, top-4 leaf | 99,38% | 98,75% | 28,91% | 2.139 |
+| Hybrid + reranker + ambang, top-4 leaf | 99,38% | 97,50% | 91,67% | 605 |
+| **Pipeline saat ini: hybrid + reranker + parent packing** | **99,38%** | **97,50%** | **91,61%** | **638** |
+
+Reranking/penyaringan menghasilkan konteks jauh lebih terfokus, dengan konsekuensi
+kehilangan sebagian bukti: 159 pertanyaan memiliki jawaban di pool hybrid,
+tetapi hanya 156 yang tetap memilikinya setelah pipeline. Hybrid RRF belum
+meningkatkan answer hit@4 dibanding dense pada corpus ini. Simpan keduanya sebagai
+baseline evaluasi, jangan menganggap hybrid selalu unggul.
+
+### Apakah model sangat kecil terbantu?
+
+Empat kondisi berikut memakai **80 pertanyaan yang sama**. Oracle memberikan
+konteks acuan lengkap dan menjadi kontrol diagnostik; bukan sistem yang bisa
+dipakai tanpa mengetahui sumber jawaban terlebih dahulu.
+
+| Bukti untuk Qwen 0.5B | Answer hit konteks | Exact match | Token F1 | Rata-rata token input, termasuk prompt |
+| --- | ---: | ---: | ---: | ---: |
+| Tanpa RAG | — | 1,25% | 7,45% | 129 |
+| Baseline fixed 800/120 + dense top-4 | 96,25% | 38,75% | 47,15% | 769 |
+| **RAG saat ini / konfigurasi terpilih dari dev** | **97,50%** | **36,25%** | **47,29%** | **347** |
+| Oracle: konteks acuan lengkap | 100,00% | 36,25% | 49,60% | 319 |
+
+RAG saat ini meningkatkan exact match **35 poin persentase** dibanding tanpa
+RAG; interval bootstrap berpasangan 95% adalah **+25 sampai +45 poin**.
+Dibanding baseline dense, selisihnya **−2,5 poin**, dengan interval **−10 sampai
++3,75 poin**: belum ada bukti peningkatan akurasi. Kelebihan yang terlihat adalah
+**54,8% lebih sedikit token input** dengan token F1 hampir sama. Interval bersifat
+eksploratif: 10.000 resampling pertanyaan, bukan cluster artikel.
+
+Dari 78 pertanyaan yang sudah menerima jawaban dalam konteks, **49 belum dijawab
+dengan exact match**. Ini mencakup kesalahan isi maupun perbedaan bentuk jawaban,
+bukan otomatis 49 halusinasi. Contoh kesalahan isi: pertanyaan presiden pertama
+Nauru memiliki jawaban acuan `Hammer DeRoburt`, tetapi model memilih
+`Bernard Dowiyogo` meskipun bukti acuan tersedia. Skor oracle memperkuat bahwa
+kemampuan membaca bukti/prompt/model juga menjadi kendala. Model generator kecil
+tidak berarti seluruh sistem kecil: embedding dan reranker tetap model terpisah.
+
+Kontrol tambahan pada 20 pertanyaan memberikan konteks pengganggu dari hasil
+dense setelah sumber acuan dan teks jawaban anotasi dikeluarkan, serta konteks
+kosong. Dengan instruksi yang secara eksplisit melarang pengetahuan di luar bukti,
+model menulis penolakan tepat `TIDAK DITEMUKAN` pada **3/20** dan **2/20** kasus.
+Ini metrik kepatuhan format penolakan, **bukan tingkat halusinasi**: beberapa
+penolakan memakai ejaan lain, dan ketiadaan string jawaban tidak membuktikan
+ketiadaan semua kemungkinan jawaban semantik. Kontrol ini menguji generator,
+bukan gate bukti kosong aplikasi. Lihat [respons kontrol mentah](evaluation/results/rag-tydiqa-id-20260918/missing-evidence.jsonl).
+
+### Temuan integritas dan prioritas perbaikan
+
+[Probe sintetis terpisah](evaluation/results/rag-tydiqa-id-20260918/integrity-probes.json)
+menghasilkan temuan yang tidak bergantung pada skor TyDi QA:
+
+1. **Bukti dari bagian berbeda dapat hilang.** Dua bagian dokumen tanpa nomor
+   halaman menghasilkan dua retrieved chunks, tetapi `pack_parent_pages`
+   menyisakan satu karena kuncinya sama-sama `(file_id, None, claim_id)`.
+   Gunakan identitas parent/section yang stabil untuk Markdown, DOCX, dan teks.
+2. **Parent yang dipotong dapat menghapus jawaban leaf.** Pada halaman sintetis
+   6.678 karakter, jawaban di offset 6.646 ada di retrieved leaf, tetapi hilang
+   setelah packing: parent dibatasi 5.000 karakter dan quote 350 karakter.
+   Pertahankan seluruh span leaf yang cocok; perluas konteks di sekitarnya dalam
+   anggaran token, bukan selalu mengambil awal halaman.
+3. **Indeks bernama BM25 belum menerapkan BM25 lengkap.** `encode_sparse`
+   menyimpan raw term frequency; Qdrant menambahkan IDF. Pengulangan satu istilah
+   10 kali menghasilkan bobot 10 kali, tanpa saturasi TF dan normalisasi panjang
+   dokumen. Bandingkan implementasi BM25 sebenarnya secara terkontrol sebelum
+   menyimpulkan manfaat sparse/hybrid. [Referensi IDF Qdrant](https://qdrant.tech/documentation/concepts/indexing/#idf-modifier).
+4. **Identitas konfigurasi indeks perlu eksplisit.** Simpan versi parser/chunker,
+   revisi model embedding, dimensi, prefix, dan aturan sparse/stemming pada manifest
+   collection. Pemeriksaan collection yang ada saat ini belum memvalidasi semua
+   parameter tersebut. Reindex lewat staging lalu alihkan publikasi setelah siap;
+   jalur retry saat ini menghapus points lama sebelum pengindeksan ulang selesai.
+5. **Prioritaskan validasi bukti sebelum memperbesar model.** Pertahankan source ID,
+   lokasi span, angka/satuan/negasi, dan provenance sampai prompt akhir. Tambahkan
+   gate aplikasi untuk bukti kosong, validasi kutipan/angka, dan abstention terukur;
+   prompt saja belum merupakan jaminan. Uji dokumen Indonesia nyata, tabel, OCR,
+   pengecualian aturan, dan pertanyaan tanpa jawaban sebelum mengubah default.
+
+Perbaikan di atas adalah **rekomendasi hasil evaluasi**; eksperimen ini tidak
+mengubah pipeline produksi. Batas lain: corpus kecil berisi paragraf yang sudah
+memiliki anotasi jawaban; tidak mengukur validitas fakta dunia nyata, konflik
+antardokumen, freshness, multi-hop, OCR/tabel, kualitas sitasi UI, atau skala indeks.
+Skor ini tidak menjamin kualitas pada dokumen pengguna.
+
+### Artefak dan pengulangan eksperimen
+
+[Ringkasan lengkap](evaluation/results/rag-tydiqa-id-20260918/summary.json),
+[hasil retrieval per pertanyaan](evaluation/results/rag-tydiqa-id-20260918/retrieval.jsonl),
+[jawaban model mentah](evaluation/results/rag-tydiqa-id-20260918/generation.jsonl),
+[pembagian dev/test](evaluation/results/rag-tydiqa-id-20260918/selection.json),
+[interval/perbandingan](evaluation/results/rag-tydiqa-id-20260918/analysis.json), dan
+[fingerprint kode](evaluation/results/rag-tydiqa-id-20260918/source-manifest.json)
+disimpan di repo. Kondisi `dev_selected` pada artefak generasi sama dengan
+`current_production`, sehingga bukan replikasi independen. Ada satu variasi
+ejaan penolakan antarbatches BF16; skor EM/F1 kedua kondisi sama.
+Artefak `missing-evidence-conditional-prompt*` menyimpan percobaan awal dengan
+prompt yang mengizinkan pengetahuan internal bila bukti tidak diberikan;
+angka kontrol di atas memakai percobaan berikutnya dengan larangan eksplisit.
+
+Dari root repo, setelah `uv sync --directory apps` dan GPU CUDA tersedia:
+
+```bash
+mkdir -p /tmp/dillema-rag-eval
+curl -fL 'https://huggingface.co/datasets/google-research-datasets/tydiqa/resolve/da78f23f9119363459acbaf46bf89426ff26c259/secondary_task/validation-00000-of-00001.parquet' \
+  -o /tmp/dillema-rag-eval/validation.parquet
+
+uv run --directory apps huggingface-cli download intfloat/multilingual-e5-base --revision d128750597153bb5987e10b1c3493a34e5a4502a
+uv run --directory apps huggingface-cli download BAAI/bge-reranker-v2-m3 --revision 953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e
+uv run --directory apps huggingface-cli download Qwen/Qwen2.5-0.5B-Instruct --revision 7ae557604adf67be50417f59c2c2f167def9a775
+
+uv run --directory apps python evaluation/public_rag_eval.py \
+  --dataset /tmp/dillema-rag-eval/validation.parquet \
+  --out ../evaluation/results/rag-tydiqa-id-rerun
+uv run --directory apps python evaluation/rag_integrity_probes.py \
+  --out ../evaluation/results/rag-tydiqa-id-rerun/integrity-probes.json
+uv run --directory apps python evaluation/public_rag_controls.py \
+  --dataset /tmp/dillema-rag-eval/validation.parquet \
+  --results ../evaluation/results/rag-tydiqa-id-rerun
+uv run --directory apps python evaluation/summarize_public_rag.py \
+  --results ../evaluation/results/rag-tydiqa-id-rerun
+```
+
+Model dibaca dari cache lokal pada revisi di atas; dataset SHA-256, versi library,
+dan parameter disimpan dalam hasil. Waktu indexing mentah pada JSON **tidak layak
+dibandingkan sebagai benchmark**: konfigurasi pertama membayar inisialisasi/cache
+stemming, konfigurasi berikutnya memakai cache yang sudah hangat. Revisi benchmark
+berikutnya perlu isolasi cold/warm run dan ulangan terpisah untuk mengukur performa.
+
 ## Documentation
 
 For detailed documentation, see [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md)
