@@ -35,6 +35,15 @@ def pack_parent_pages(pairs: list, max_pages: int = MAX_PAGES_FOR_GENERATOR) -> 
     return packed
 
 
+def drop_weak_evidence(pairs: list, ratio: float) -> list:
+    """Keep evidence scoring at least `ratio` of the best reranked match."""
+    scores = [pair[2].get("rerank_score") for pair in pairs if len(pair) > 2]
+    if not ratio or not scores or any(score is None for score in scores):
+        return pairs
+    floor = max(scores) * ratio
+    return [pair for pair in pairs if pair[2]["rerank_score"] >= floor]
+
+
 def format_graph_evidence(item: dict) -> str:
     lines = [f"Klaim: {item.get('statement') or ''}"]
     qualifiers = item.get("qualifiers")
@@ -104,7 +113,7 @@ class RetrievalService:
                 collection_name=collection.vectordb_collection_name,
                 query_vector=query_embedding,
                 query_text=query,
-                limit=20,
+                limit=settings.RETRIEVAL_CANDIDATES,
             )
             for hit in search_result:
                 metadata = hit.payload or {}
@@ -162,4 +171,6 @@ class RetrievalService:
                 payload.collection_id,
             )
             return []
-        return pack_parent_pages(ranked)
+        return pack_parent_pages(
+            drop_weak_evidence(ranked, settings.RERANK_RELATIVE_FLOOR)
+        )

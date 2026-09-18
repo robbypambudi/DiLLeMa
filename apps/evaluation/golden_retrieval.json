@@ -1,0 +1,34 @@
+{
+  "documents": {
+    "handbook": "Module-Handbook-Bachelor-of-Informatics-Program-ITS.pdf",
+    "renstra": "RENSTRA-ITS-2026-2030.pdf"
+  },
+  "questions": [
+    {"doc": "handbook", "q": "Apa kode mata kuliah Sistem Operasi?", "answer": "EF234202", "range": [29, 31]},
+    {"doc": "handbook", "q": "Siapa saja dosen pengampu mata kuliah Sistem Operasi?", "answer": "Wahyu Suadi", "range": [29, 31]},
+    {"doc": "handbook", "q": "Buku apa yang menjadi pustaka utama mata kuliah Sistem Operasi?", "answer": "Stalling", "range": [29, 31]},
+    {"doc": "handbook", "q": "Apa capaian pembelajaran mata kuliah Sistem Operasi tentang manajemen memori?", "answer": "page replacement", "range": [29, 31]},
+    {"doc": "handbook", "q": "Metode klasifikasi apa saja yang dipelajari di mata kuliah Machine Learning?", "answer": "Decision Tree", "range": [80, 83]},
+    {"doc": "handbook", "q": "Apakah Reinforcement Learning termasuk capaian pembelajaran mata kuliah Pembelajaran Mesin?", "answer": "Reinforcement Learning", "range": [80, 83]},
+    {"doc": "handbook", "q": "Apa capaian pembelajaran Data Mining tentang deteksi anomali?", "answer": "anomaly detection", "range": [110, 112]},
+    {"doc": "handbook", "q": "Materi apa saja yang dibahas di mata kuliah Deep Learning?", "answer": "Deep Generative Model", "range": [224, 226]},
+    {"doc": "handbook", "q": "Apa kode mata kuliah Deep Learning?", "answer": "EF234619", "range": [224, 226]},
+    {"doc": "handbook", "q": "Apa capaian pembelajaran mata kuliah Jaringan Komputer terkait perancangan jaringan?", "answer": "high performance", "range": [50, 52]},
+    {"doc": "handbook", "q": "Apa kode mata kuliah Komputasi Kuantum?", "answer": "EF234713", "range": [282, 284]},
+    {"doc": "handbook", "q": "Siapa dosen pengampu mata kuliah Sistem Enterprise?", "answer": "Kelly Rosa", "range": [119, 121]},
+    {"doc": "handbook", "q": "Bagaimana bentuk evaluasi mata kuliah Konsep Kecerdasan Artifisial?", "answer": "Final exam", "range": [59, 61]},
+    {"doc": "handbook", "q": "Apa kode mata kuliah Keamanan Jaringan?", "answer": "EF234606", "range": [180, 183]},
+    {"doc": "handbook", "q": "Siapa dosen pengampu mata kuliah Teori Graf?", "answer": "Lecturer", "range": [53, 55]},
+    {"doc": "handbook", "q": "Mata kuliah apa saja yang diambil pada semester 1?", "answer": "Fundamental Programming", "range": [4, 4]},
+    {"doc": "handbook", "q": "Apa saja daftar mata kuliah pilihan di program sarjana informatika?", "answer": "LIST OF ELECTIVE COURSES", "range": [6, 6]},
+    {"doc": "renstra", "q": "Apa visi ITS?", "answer": "reputasi internasional dalam ilmu pengetahuan", "range": [17, 17]},
+    {"doc": "renstra", "q": "Apa saja tujuan ITS?", "answer": "Mencerdaskan kehidupan bangsa", "range": [18, 18]},
+    {"doc": "renstra", "q": "Apa saja tema strategis RAISE dalam RENSTRA?", "answer": "Relevant and Impactful Research", "range": [1, 171]},
+    {"doc": "renstra", "q": "Berapa pendapatan BPPTNBH yang diasumsikan sampai tahun 2030?", "answer": "74,9", "range": [121, 121]},
+    {"doc": "renstra", "q": "Berapa asumsi kenaikan pendapatan APBN-K per tahun?", "answer": "1% per tahun", "range": [121, 121]},
+    {"doc": "renstra", "q": "Peraturan apa yang mengatur pengelolaan Dana Abadi ITS?", "answer": "Nomor 32 Tahun 2022", "range": [135, 142]},
+    {"doc": "renstra", "q": "Untuk apa anggaran investasi strategis CAPEX ITS disusun?", "answer": "CAPEX", "range": [132, 132]},
+    {"doc": "renstra", "q": "Bagaimana kerangka manajemen risiko ITS?", "answer": "MANAJEMEN RISIKO", "range": [145, 146]},
+    {"doc": "renstra", "q": "Siapa yang menetapkan Indikator Kinerja Utama?", "answer": "Indikator Kinerja Utama (IKU) ditetapkan", "range": [103, 103]}
+  ]
+}

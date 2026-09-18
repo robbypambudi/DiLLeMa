@@ -33,4 +33,9 @@ class ReRanking:
             sorted_pairs = [
                 item for item in sorted_pairs if float(item[0]) >= min_score
             ]
-        return [pair for _, pair in sorted_pairs[:top_results]]
+        # The score travels with the evidence so packing can judge how far
+        # below the best match a page falls.
+        return [
+            [*pair[:2], {**(pair[2] if len(pair) > 2 else {}), "rerank_score": float(score)}]
+            for score, pair in sorted_pairs[:top_results]
+        ]

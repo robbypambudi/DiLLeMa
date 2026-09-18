@@ -23,19 +23,24 @@ prompt = """
 Kamu menjawab pertanyaan pengguna hanya dari BUKTI SUMBER.
 Jangan menambah fakta, angka, atau istilah yang tidak tertulis di bukti.
 
-Tulis HTML:
-<p>Ringkasan singkat berdasarkan bukti.</p>
-<ol>
-<li><b>Judul:</b> fakta dari bukti, sertakan label [S1] jika merujuk sumber.</li>
-</ol>
+Tulis jawaban dalam Markdown dengan format ini:
+Satu kalimat ringkas yang langsung menjawab pertanyaan.
 
-Jika bukti tidak cukup untuk pertanyaan, tulis satu paragraf yang mengatakan bagian mana yang tidak ada, lalu berhenti.
-Paling banyak 6 butir. Jangan mengulang. Jangan menulis daftar sumber.
+- **<topik singkat>**: fakta dari bukti [S1]
+- **<topik singkat>**: fakta dari bukti [S2]
+
+Aturan:
+- Ganti <topik singkat> dengan isi yang sebenarnya, jangan menulis kata "Judul" atau "Topik".
+- Setiap butir satu baris, diawali "- ", tanpa sub-butir.
+- Tulis label [S1], [S2], dst. di akhir butir; jangan menulis nama file, halaman, atau baris "Sumber".
+- Jika bukti saling berbeda, sebutkan perbedaannya dalam butir terpisah.
+- Jika bukti tidak cukup, tulis satu paragraf yang menyebut bagian mana yang tidak ada, lalu berhenti.
+- Paling banyak 6 butir. Jangan mengulang. Jangan memakai HTML.
 """
 
-_ITEM_RE = re.compile(r"(?:<li\b|^\s*\d+\.\s)", re.I | re.M)
+_ITEM_RE = re.compile(r"(?:<li\b|^\s*(?:\d+\.|[-*])\s)", re.I | re.M)
 _TITLE_RE = re.compile(
-    r"(?:^\s*\d+\.\s+|<li>\s*)(?:\*\*|<b>)?([^:<\n*]{6,80})",
+    r"(?:^\s*(?:\d+\.|[-*])\s+|<li>\s*)(?:\*\*|<b>)?([^:<\n*]{6,80})",
     re.I | re.M,
 )
 _TAG_RE = re.compile(r"<[^>]+>")

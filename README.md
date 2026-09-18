@@ -46,13 +46,13 @@ source .venv/bin/activate
 
 ### With Docker
 
-Build the GPU serving image (based on `rayproject/ray:2.50.0-py312-cu128`):
+Build the GPU serving image (based on `rayproject/ray:2.55.0-py312-cu128`):
 
 ```bash
-docker build -t dillema:2.50.0 .
-docker run --gpus all --rm -it dillema:2.50.0 bash -lc \
-  'ray start --head && dillema serve --model-id qwen-0.5b \
-     --model-source Qwen/Qwen2.5-0.5B-Instruct'
+docker build -t dillema:2.55.0 .
+docker run --gpus all --rm -it dillema:2.55.0 bash -lc \
+  'ray start --head && dillema serve --model-id qwen-3.5-0.8b \
+     --model-source Qwen/Qwen3.5-0.8B'
 ```
 
 Requires the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html). See the header comment in the `Dockerfile` and `deploy/auth-proxy/` for securing the endpoint.
@@ -61,8 +61,8 @@ Requires the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud
 
 - Python 3.12.9
 - CUDA-capable GPU(s) (for GPU acceleration)
-- Ray 2.50.0
-- VLLM >= 0.11.0
+- Ray 2.55.0
+- VLLM 0.18.0
 
 > **Note**: `uv sync` creates `.venv` with Python 3.12.9 (see `.python-version`). You do not need conda.
 

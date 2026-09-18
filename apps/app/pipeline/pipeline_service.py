@@ -6,7 +6,7 @@ from loguru import logger
 from app.core.config import settings
 from app.models.files import Files
 from app.repositories.files_repository import FilesRepository
-from rag.nlp.doc_parse import read_sections
+from rag.nlp.doc_parse import document_pages, read_sections
 from rag.qdrant.client import QdrantHttpClient
 
 
@@ -58,6 +58,8 @@ class PipelineService:
             if not chunks:
                 raise ValueError(f"No indexable text in file {files.id}")
             logger.info("Chunked {} sections into {} windows for {}", len(sections), len(chunks), files.id)
+            pages_total = document_pages(files.file_path, files.file_type)
+            pages_indexed = len({unit[0] for unit in sections if unit[0] is not None})
 
             # Query the collection name from the database
             collection_name = self.file_repository.get_collection_name(
@@ -75,7 +77,6 @@ class PipelineService:
             documents = [item["text"] for item in chunks]
             metadata = [
                 {
-                    "text": item["text"],
                     "file_name": files.file_name,
                     "file_id": str(files.id),
                     "page": item["page"],
@@ -105,6 +106,10 @@ class PipelineService:
                         "chunk_count": len(chunks),
                         "chunk_size": self.doc_chunker.chunk_size,
                         "chunk_overlap": self.doc_chunker.chunk_overlap,
+                        # Pages without extractable text are skipped, not
+                        # fatal; the gap is recorded so it can be seen.
+                        "pages_total": pages_total,
+                        "pages_indexed": pages_indexed if pages_total else None,
                     },
                     "processing_ended_at": datetime.now(),
                 },

@@ -8,7 +8,7 @@ DiLLeMa is a distributed LLM serving system built on **Ray** (orchestration) and
 
 ## Environment constraint
 
-Runtime dependencies (`ray[default,serve]==2.50.0`, `vllm>=0.11.0`) require Linux + a CUDA GPU and **do not install on macOS**. This means `uv sync`, `uv run pytest`, and anything importing `dillema.serve`/`dillema.cli` will fail on a Mac dev machine. Do package-level edits and reasoning locally; run/test the serving stack on a Linux GPU host (see `install.sh`).
+Runtime dependencies (`ray[default,serve]==2.55.0`, `vllm==0.18.0`) require Linux + a CUDA GPU and **do not install on macOS**. This means `uv sync`, `uv run pytest`, and anything importing `dillema.serve`/`dillema.cli` will fail on a Mac dev machine. Do package-level edits and reasoning locally; run/test the serving stack on a Linux GPU host (see `install.sh`).
 
 ## Commands
 
@@ -46,8 +46,8 @@ The served `/v1` OpenAI endpoint has **no authentication** — Ray Serve LLM has
 
 ## Docker
 
-`Dockerfile` builds the serving image on `rayproject/ray:2.50.0-py312-cu128` (Ray + Python 3.12 + CUDA 12.8) and uses `uv sync` to install `vllm` + the package. Notes:
-- vLLM is installed from `uv.lock` (the `ray-llm:2.50.0` image has no py312 build). uv installs CPython 3.12.9 to match `requires-python` in `pyproject.toml`.
+`Dockerfile` builds the serving image on `rayproject/ray:2.55.0-py312-cu128` (Ray + Python 3.12 + CUDA 12.8) and uses `uv sync` to install `vllm` + the package. Notes:
+- vLLM is installed from `uv.lock` (the `ray-llm` image has no py312 build). uv installs CPython 3.12.9 to match `requires-python` in `pyproject.toml`. Pairing is Ray 2.55.0 + vLLM 0.18.0 so Qwen3.5 (`qwen3_5`) is supported.
 - Running needs the NVIDIA Container Toolkit and `--gpus all`; the build itself is GPU-free.
 - `dillema serve` calls `ray.init(address="auto")`, so start a cluster first in the container (`ray start --head && dillema serve ...`) — see the header comment in `Dockerfile`.
 

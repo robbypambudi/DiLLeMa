@@ -17,7 +17,8 @@ class ChunkingTests(unittest.TestCase):
         pages = {item["page"] for item in chunks}
         self.assertEqual(pages, {1, 2})
         page_one = next(item for item in chunks if item["page"] == 1)
-        self.assertIn("halaman 1", page_one["text"])
+        # Page and file stay in the metadata; in the text they would match every chunk.
+        self.assertNotIn("halaman 1", page_one["text"])
         self.assertIn("Visi ITS", page_one["text"])
         self.assertNotIn("prudent", page_one["text"])
         self.assertEqual(page_one["section"], "Pendahuluan")

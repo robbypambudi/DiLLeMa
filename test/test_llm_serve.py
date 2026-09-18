@@ -26,3 +26,14 @@ def test_hf_token_falls_back_to_env(monkeypatch):
     monkeypatch.setenv("HF_TOKEN", "env-token")
     s = LLMServe(model_id="m", model_source="src")
     assert s.hf_token == "env-token"
+
+
+def test_worker_runtime_env_uses_current_python():
+    import sys
+
+    s = LLMServe(model_id="m", model_source="src", hf_token="tok")
+    env = s._worker_runtime_env({"env_vars": {"GLOO_SOCKET_IFNAME": "eth0"}})
+    assert env["py_executable"] == sys.executable
+    assert env["env_vars"]["VLLM_USE_V1"] == "1"
+    assert env["env_vars"]["HF_TOKEN"] == "tok"
+    assert env["env_vars"]["GLOO_SOCKET_IFNAME"] == "eth0"

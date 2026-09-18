@@ -14,11 +14,15 @@ import re
 # body text, and treating list items as headings would shatter the page.
 _HEADING = re.compile(
     r"^[ \t]*("
-    r"(?:BAB|Bab)[ \t]+[IVXLCDM]+\b[^\n]{0,80}"
+    r"(?:BAB|Bab)[ \t]+(?:[IVXLCDM]+|\d+)\b[^\n]{0,80}"
     r"|(?:BAGIAN|Bagian)[ \t]+[^\n]{1,80}"
     r"|(?:PASAL|Pasal)[ \t]+\d+[A-Za-z]?"
     r"|(?:LAMPIRAN|Lampiran)[ \t]+[^\n]{0,80}"
     r"|\d+(?:\.\d+){0,3}[.)]?[ \t]+[A-Z][^\n]{2,80}"
+    # An unnumbered title set in capitals on its own line: "DAFTAR ISI",
+    # "LIST OF ELECTIVE COURSES". Two words at least, so a lone acronym or
+    # table label is not mistaken for one.
+    r"|[A-Z][A-Z0-9&()\-–]*(?:[ \t]+[A-Z0-9&()\-–]+){1,11}"
     r")[ \t]*$",
     re.M,
 )
@@ -50,8 +54,19 @@ def split_structure(text: str) -> list[tuple[str, str]]:
     return blocks
 
 
+_SINGLE_NUMBER = re.compile(r"^\d+[.)]?[ \t]")
+_LEADER = re.compile(r"\.{4,}|…")
+
+
 def _looks_like_prose(match: re.Match) -> bool:
     heading = match.group(1).strip()
+    # A table-of-contents line names a heading; it does not start one.
+    if _LEADER.search(heading):
+        return True
+    # "1. Students are able to ..." is a list item. A one-level number is a
+    # heading only when the line is set in capitals, as section titles are.
+    if _SINGLE_NUMBER.match(heading) and not heading.isupper():
+        return True
     # "1. Rektor menetapkan pagu penelitian." is a numbered sentence, not a
     # heading: it ends the way sentences end.
     return heading.endswith((".", ",", ";", ":")) and not heading.lower().startswith(

@@ -30,3 +30,11 @@ def test_model_source_falls_back_to_text_generation_model(monkeypatch):
     monkeypatch.delenv("DILLEMA_MODEL_SOURCE", raising=False)
     monkeypatch.setenv("TEXT_GENERATION_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
     assert model_source_from_env() == "Qwen/Qwen2.5-0.5B-Instruct"
+
+
+def test_load_dillema_env_disables_uv_run_workers(monkeypatch):
+    from dillema.env import load_dillema_env
+
+    monkeypatch.delenv("RAY_ENABLE_UV_RUN_RUNTIME_ENV", raising=False)
+    load_dillema_env()
+    assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"

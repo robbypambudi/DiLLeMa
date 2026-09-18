@@ -1,4 +1,5 @@
 import os
+import sys
 from ray.serve.llm import LLMConfig, build_openai_app
 
 
@@ -12,7 +13,23 @@ class LLMServe:
         self.tensor_parallel_size = tensor_parallel_size
         self.pipeline_parallel_size = pipeline_parallel_size
         self.app = None
-        
+
+    def _worker_runtime_env(self, runtime_env: dict | None) -> dict:
+        """Reuse the driver venv; do not let workers `uv run` and reinstall deps."""
+        merged = {
+            "py_executable": sys.executable,
+            "env_vars": {"VLLM_USE_V1": "1"},
+        }
+        if self.hf_token:
+            merged["env_vars"]["HF_TOKEN"] = self.hf_token
+        if runtime_env:
+            extra_vars = runtime_env.get("env_vars") or {}
+            merged["env_vars"].update(extra_vars)
+            for key, value in runtime_env.items():
+                if key != "env_vars":
+                    merged[key] = value
+        return merged
+
     def build_app(self, min_replicas: int = 1, max_replicas: int = 1, 
                   engine_kwargs: dict = None, runtime_env: dict = None):
         """Build OpenAI-compatible app"""
@@ -23,14 +40,8 @@ class LLMServe:
         }
         if engine_kwargs:
             default_engine_kwargs.update(engine_kwargs)
-        
-        default_runtime_env = {"env_vars": {"VLLM_USE_V1": "1"}}
-        if self.hf_token:
-            default_runtime_env["env_vars"]["HF_TOKEN"] = self.hf_token
-        if runtime_env and "env_vars" in runtime_env:
-            default_runtime_env["env_vars"].update(runtime_env["env_vars"])
-        elif runtime_env:
-            default_runtime_env.update(runtime_env)
+
+        default_runtime_env = self._worker_runtime_env(runtime_env)
         
         llm_config = LLMConfig(
             model_loading_config={"model_id": self.model_id, "model_source": self.model_source},

@@ -35,5 +35,27 @@ class ParentPackTests(unittest.TestCase):
         self.assertIn('"negated": true', text)
 
 
+
+
+class WeakEvidenceTests(unittest.TestCase):
+    def test_evidence_far_below_the_best_match_is_dropped(self):
+        from app.services.retrieval_service import drop_weak_evidence
+
+        pairs = [
+            ["q", "kode EF234202", {"page": 29, "rerank_score": 0.99}],
+            ["q", "halaman lanjutan", {"page": 30, "rerank_score": 0.68}],
+            ["q", "mata kuliah lain", {"page": 95, "rerank_score": 0.28}],
+        ]
+        kept = drop_weak_evidence(pairs, 0.5)
+        self.assertEqual([pair[2]["page"] for pair in kept], [29, 30])
+
+    def test_unscored_evidence_and_a_zero_ratio_keep_everything(self):
+        from app.services.retrieval_service import drop_weak_evidence
+
+        pairs = [["q", "a", {"page": 1}], ["q", "b", {"page": 2}]]
+        self.assertEqual(drop_weak_evidence(pairs, 0.5), pairs)
+        scored = [["q", "a", {"rerank_score": 0.9}], ["q", "b", {"rerank_score": 0.1}]]
+        self.assertEqual(drop_weak_evidence(scored, 0.0), scored)
+
 if __name__ == "__main__":
     unittest.main()

@@ -21,6 +21,7 @@ await build({
         citations: `${root}src/features/chat/lib/citations.ts`,
         sources: `${root}src/features/chat/lib/sources.ts`,
         historyStorage: `${root}src/features/chat/lib/historyStorage.ts`,
+        formatAnswer: `${root}src/features/chat/lib/formatAnswer.ts`,
       },
       output: { entryFileNames: '[name].mjs' },
     },

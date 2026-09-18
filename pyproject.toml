@@ -8,10 +8,13 @@ description = "This repository contains a docker-compose file that can be used t
 readme = "README.md"
 requires-python = "==3.12.9"
 dependencies = [
+    "boto3>=1.43.97",
     "botocore>=1.40.53",
+    "fastapi>=0.115.0,<0.137",
     "pyarrow>=21.0.0",
-    "ray[default,serve]==2.50.0",
-    "vllm>=0.11.0",
+    "ray[default,serve]==2.55.0",
+    "starlette>=0.40.0,<1",
+    "vllm==0.18.0",
 ]
 dynamic=[ "version" ]
 

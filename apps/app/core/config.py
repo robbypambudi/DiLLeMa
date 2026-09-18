@@ -78,6 +78,14 @@ class Settings(BaseSettings):
     # dropped, so an out-of-corpus question gets "not enough information"
     # instead of an answer built on the least-bad chunk. Calibrate per corpus.
     RERANK_MIN_SCORE: float = Field(default=0.05, ge=0.0, le=1.0)
+    # Hybrid-search hits per query handed to the reranker. A term that recurs
+    # across a long document (an acronym, a programme name) fills a small pool
+    # with passing mentions before the passage that defines it.
+    RETRIEVAL_CANDIDATES: int = Field(default=40, ge=5, le=200)
+    # Evidence scoring below this fraction of the best match is not sent to
+    # the generator: a small model reads every page it is given as an answer,
+    # so a weak neighbour becomes a wrong fact. 0 disables the cut.
+    RERANK_RELATIVE_FLOOR: float = Field(default=0.5, ge=0.0, le=1.0)
 
     KG_ENABLED: bool = False
     KG_LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")

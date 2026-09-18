@@ -59,6 +59,9 @@ def env_file_candidates() -> list[Path]:
 def load_dillema_env() -> None:
     for path in env_file_candidates():
         apply_env_file(path)
+    # `uv run dillema serve` would otherwise make Ray workers run `uv run` in a
+    # packaged working_dir without .venv, so they re-download torch/vLLM.
+    os.environ.setdefault("RAY_ENABLE_UV_RUN_RUNTIME_ENV", "0")
 
 
 def model_id_from_env() -> str | None:
