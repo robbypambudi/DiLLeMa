@@ -75,13 +75,14 @@ def test_default_stays_in_foreground(command, handler, monkeypatch):
 
 
 def test_dashboard_sigterm_cleans_up_children(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setattr(dashboard, "find_dashboard", lambda: tmp_path)
     for name in ("_ensure_project", "_ensure_migrations", "_ensure_npm_deps"):
         monkeypatch.setattr(dashboard, name, lambda path: None)
     monkeypatch.setattr(dashboard, "_port_open", lambda host, port: False)
     monkeypatch.setattr(dashboard, "_uvicorn_cmd", lambda *args: ["api"])
     monkeypatch.setattr(dashboard.shutil, "which", lambda name: name)
-    children = [Mock(), Mock()]
+    children = [Mock(pid=4001), Mock(pid=4002)]
     for child in children:
         child.poll.return_value = None
     monkeypatch.setattr(dashboard.subprocess, "Popen", Mock(side_effect=children))
@@ -140,13 +141,14 @@ def test_web_proxy_targets_the_started_api_without_pinning_the_browser_url(
     # The browser calls VITE_BACKEND_URL; forcing 127.0.0.1 there would send a
     # remote viewer to their own machine. Only the server-side proxy is set.
     monkeypatch.delenv("VITE_BACKEND_URL", raising=False)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setattr(dashboard, "find_dashboard", lambda: tmp_path)
     for name in ("_ensure_project", "_ensure_migrations", "_ensure_npm_deps"):
         monkeypatch.setattr(dashboard, name, lambda path: None)
     monkeypatch.setattr(dashboard, "_port_open", lambda host, port: False)
     monkeypatch.setattr(dashboard, "_uvicorn_cmd", lambda *args: ["api"])
     monkeypatch.setattr(dashboard.shutil, "which", lambda name: name)
-    popen = Mock(return_value=Mock(poll=Mock(return_value=None)))
+    popen = Mock(return_value=Mock(pid=4003, poll=Mock(return_value=None)))
     monkeypatch.setattr(dashboard.subprocess, "Popen", popen)
     monkeypatch.setattr(dashboard, "_stop", Mock())
     monkeypatch.setattr(
@@ -162,3 +164,76 @@ def test_web_proxy_targets_the_started_api_without_pinning_the_browser_url(
     web_env = popen.call_args_list[-1].kwargs["env"]
     assert "VITE_BACKEND_URL" not in web_env
     assert web_env["DILLEMA_API_PROXY_TARGET"] == "http://127.0.0.1:8081"
+
+
+def _detached_sleep() -> int:
+    """A process in its own session that is not our child (so it never lingers
+    as a zombie), like the dashboard's API and web processes."""
+    out = subprocess.check_output(
+        ["setsid", "sh", "-c", "sleep 60 >/dev/null 2>&1 & echo $!"], text=True
+    )
+    return int(out.strip())
+
+
+def _gone(pid: int, seconds: float = 5) -> bool:
+    import os
+    import time
+
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def test_dashboard_down_stops_the_recorded_processes(tmp_path, monkeypatch, capsys):
+    import json
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    monkeypatch.setattr(dashboard, "find_dashboard", lambda: tmp_path)
+    launcher, api, web = _detached_sleep(), _detached_sleep(), _detached_sleep()
+    state = tmp_path / "dillema" / "dashboard.pids"
+    state.parent.mkdir(parents=True)
+    state.write_text(json.dumps({"launcher": launcher, "children": [api, web]}))
+
+    dashboard.stop_dashboard(SimpleNamespace(docker=False))
+
+    assert all(_gone(pid) for pid in (launcher, api, web))
+    assert not state.exists()
+    assert "Dashboard stopped" in capsys.readouterr().out
+
+
+def test_dashboard_down_without_a_record_finds_nothing_to_stop(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    monkeypatch.setattr(dashboard, "find_dashboard", lambda: tmp_path)
+    monkeypatch.setattr(dashboard, "_running_from", lambda root: [])
+    dashboard.stop_dashboard(SimpleNamespace(docker=False))
+    assert "not running" in capsys.readouterr().out
+
+
+def test_dashboard_down_is_never_detached(monkeypatch):
+    monkeypatch.setattr(cli, "load_dillema_env", lambda: None)
+    monkeypatch.setattr(sys, "argv", ["dillema", "dashboard", "down", "-d", "--docker"])
+    stop, detach = Mock(), Mock()
+    monkeypatch.setattr(dashboard, "stop_dashboard", stop)
+    monkeypatch.setattr(cli, "_start_detached", detach)
+    cli.main()
+    detach.assert_not_called()
+    assert stop.call_args.args[0].docker is True
+
+
+def test_detached_dashboard_does_not_forward_the_action(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    monkeypatch.setattr(cli, "load_dillema_env", lambda: None)
+    monkeypatch.setattr(sys, "argv", ["dillema", "dashboard", "up", "-d"])
+    popen = Mock(return_value=Mock(pid=1))
+    monkeypatch.setattr(cli.subprocess, "Popen", popen)
+    cli.main()
+    argv = popen.call_args.args[0]
+    assert argv[3:5] == ["dillema.cli", "dashboard"]
+    assert not any(arg.startswith("--action") for arg in argv)

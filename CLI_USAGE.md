@@ -66,7 +66,10 @@ From the repository (needs Node.js, `uv`, and Docker for Postgres/Qdrant):
 
 ```bash
 dillema start dashboard
-# same as: dillema dashboard
+# same as: dillema dashboard   (add -d to run it in the background)
+
+dillema dashboard down            # stop the API and web UI
+dillema dashboard down --docker   # also stop Postgres/Qdrant (data is kept)
 ```
 
 - API: http://localhost:8080

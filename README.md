@@ -141,9 +141,11 @@ uv run dillema start dashboard -d
 
 Each command prints its background PID and a `tail -f` command for its log in
 `$XDG_STATE_HOME/dillema` (default: `~/.local/state/dillema`). Startup continues
-asynchronously; check the log for readiness or errors. Use `kill <PID>` to stop
-the background process; for the dashboard this also stops the API/web processes
-it started. Use `dillema stop` to stop the Ray cluster and deployed model.
+asynchronously; check the log for readiness or errors. Stop the dashboard with
+`dillema dashboard down` (it also stops the API/web processes it started; add
+`--docker` to stop Postgres/Qdrant too, keeping their data). Use `kill <PID>` for
+other background processes, and `dillema stop` to stop the Ray cluster and
+deployed model.
 Without `-d`, commands continue running in the foreground.
 
 Or pass the model explicitly:
@@ -216,7 +218,9 @@ dillema stop
 - `--app-host`: Application host address (default: 0.0.0.0)
 - `--app-port`: Application port number (default: 8000)
 
-#### `dillema dashboard` / `dillema start dashboard`
+#### `dillema dashboard [up|down]` / `dillema start dashboard`
+- `up` (default): start the API and web UI; `down`: stop a running dashboard, foreground or `-d`
+- `--docker`: With `down`, also stop the Postgres/Qdrant containers (data is kept)
 - `-d`, `--detach`: Run the API and web UI in the background with output saved to a log
 - `--api-host`: API host (default: 0.0.0.0)
 - `--api-port`: API port (default: 8080)

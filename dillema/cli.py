@@ -151,9 +151,12 @@ def cmd_serve(args):
 
 
 def cmd_dashboard(args):
-    from dillema.dashboard import start_dashboard
+    from dillema.dashboard import start_dashboard, stop_dashboard
 
-    start_dashboard(args)
+    if getattr(args, "action", "up") == "down":
+        stop_dashboard(args)
+    else:
+        start_dashboard(args)
 
 
 def _start_detached(args):
@@ -161,7 +164,7 @@ def _start_detached(args):
     if args.command == "start":
         command.append(args.target)
     for name, value in vars(args).items():
-        if name in {"command", "target", "func", "detach"} or value is None:
+        if name in {"command", "target", "func", "detach", "action"} or value is None:
             continue
         flag = "--" + name.replace("_", "-")
         if isinstance(value, bool):
@@ -263,7 +266,19 @@ def main():
 
     dashboard_parser = subparsers.add_parser(
         "dashboard",
-        help="Start DiLLeMa API and web UI",
+        help="Start (up, default) or stop (down) the DiLLeMa API and web UI",
+    )
+    dashboard_parser.add_argument(
+        "action",
+        nargs="?",
+        choices=["up", "down"],
+        default="up",
+        help="up starts the dashboard; down stops a running one",
+    )
+    dashboard_parser.add_argument(
+        "--docker",
+        action="store_true",
+        help="With down: also stop the Postgres and Qdrant containers (data is kept)",
     )
     _add_dashboard_args(dashboard_parser)
 
@@ -309,7 +324,8 @@ def main():
     args = parser.parse_args()
 
     if hasattr(args, "func"):
-        if getattr(args, "detach", False):
+        # Stopping is immediate; only starting is worth detaching.
+        if getattr(args, "detach", False) and getattr(args, "action", "up") != "down":
             _start_detached(args)
         else:
             args.func(args)

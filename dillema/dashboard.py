@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import signal
@@ -155,6 +156,141 @@ def _stop(procs: list[subprocess.Popen]) -> None:
                 proc.kill()
 
 
+def _state_file() -> Path:
+    state = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state")
+    return state / "dillema" / "dashboard.pids"
+
+
+def _write_state(procs: list[subprocess.Popen]) -> None:
+    """Record who to stop, so `dillema dashboard down` works from any shell."""
+    path = _state_file()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {"launcher": os.getpid(), "children": [proc.pid for proc in procs]}
+            )
+        )
+    except OSError as exc:
+        print(f"! Could not record dashboard PIDs ({exc}); `down` will search for them")
+
+
+def _read_state() -> dict | None:
+    try:
+        return json.loads(_state_file().read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _clear_state(launcher: int | None = None) -> None:
+    """Remove the record, but only our own when `launcher` is given."""
+    state = _read_state()
+    if launcher is not None and (state or {}).get("launcher") != launcher:
+        return
+    try:
+        _state_file().unlink()
+    except OSError:
+        pass
+
+
+def _alive(pid: int | None) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _wait_gone(pids: list[int], seconds: float) -> list[int]:
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        pids = [pid for pid in pids if _alive(pid)]
+        if not pids:
+            return []
+        time.sleep(0.2)
+    return [pid for pid in pids if _alive(pid)]
+
+
+def _signal_group(pid: int, sig: int) -> None:
+    """Children run in their own session, so pid is also their group id."""
+    try:
+        os.killpg(os.getpgid(pid), sig)
+    except (ProcessLookupError, PermissionError):
+        try:
+            os.kill(pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
+def _running_from(root: Path) -> list[int]:
+    """API and web processes started from this checkout, for dashboards
+    launched before PIDs were recorded. Linux only (/proc)."""
+    web = root / "web"
+    own_group = os.getpgid(0)
+    found = []
+    for entry in Path("/proc").glob("[0-9]*"):
+        try:
+            cwd = Path(os.readlink(entry / "cwd"))
+            cmdline = (
+                (entry / "cmdline")
+                .read_bytes()
+                .replace(b"\0", b" ")
+                .decode(errors="replace")
+            )
+            pid = int(entry.name)
+            if os.getpgid(pid) == own_group:
+                continue
+        except (OSError, ValueError):
+            continue
+        api = cwd == root and "uvicorn" in cmdline and "app.main:app" in cmdline
+        ui = cwd == web and ("vite" in cmdline or "npm run dev" in cmdline)
+        if api or ui:
+            found.append(pid)
+    return found
+
+
+def stop_dashboard(args) -> None:
+    root = find_dashboard()
+    state = _read_state()
+    targets: list[int] = []
+    if state:
+        launcher = state.get("launcher")
+        if _alive(launcher):
+            print(f"Stopping dashboard (launcher PID {launcher})…")
+            # Its SIGTERM handler stops the API and web cleanly.
+            os.kill(launcher, signal.SIGTERM)
+            _wait_gone([launcher], 12)
+        targets = [pid for pid in state.get("children", []) if _alive(pid)]
+    else:
+        targets = _running_from(root)
+
+    if targets:
+        print(f"Stopping dashboard processes {targets}…")
+        for pid in targets:
+            _signal_group(pid, signal.SIGTERM)
+        for pid in _wait_gone(targets, 8):
+            _signal_group(pid, signal.SIGKILL)
+    _clear_state()
+
+    if not state and not targets:
+        print("✓ Dashboard is not running")
+    else:
+        print("✓ Dashboard stopped")
+
+    if getattr(args, "docker", False):
+        docker = shutil.which("docker")
+        if not docker:
+            print("! docker not found; Postgres/Qdrant left as they are")
+            return
+        print("Stopping Postgres and Qdrant (data is kept)…")
+        for project in ("dillema", "ragforge"):
+            subprocess.run([docker, "compose", "-p", project, "stop"], cwd=root)
+
+
 def start_dashboard(args) -> None:
     root = find_dashboard()
     web = root / "web"
@@ -215,6 +351,7 @@ def start_dashboard(args) -> None:
                 )
             )
 
+        _write_state(procs)
         print(f"\n✓ API:       http://127.0.0.1:{api_port}")
         print(f"✓ Dashboard: http://127.0.0.1:{web_port}")
         print("Press Ctrl+C to stop\n")
@@ -235,4 +372,5 @@ def start_dashboard(args) -> None:
         try:
             _stop(procs)
         finally:
+            _clear_state(launcher=os.getpid())
             signal.signal(signal.SIGTERM, previous_sigterm)
