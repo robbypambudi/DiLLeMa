@@ -197,18 +197,39 @@ class DocumentChunker:
                 runs.append((table, [line]))
         return runs
 
+    @staticmethod
+    def _is_group_row(row: str, columns: int) -> bool:
+        """A one-cell row dividing a table into groups, like `| SEMESTER 3 |`.
+
+        It names every row beneath it, so a cut that leaves it behind strands
+        those rows: the courses of semester 3 become a list of courses of
+        nothing, and no search for "semester 3" can reach them again.
+        """
+        cells = [cell for cell in split_cells(row) if cell.strip()]
+        return columns >= 3 and len(cells) == 1
+
     def _split_table(self, rows: list[str]) -> list[tuple[str, str]]:
         """Cut between rows, never inside one; list tables repeat their header."""
         header = rows[0] if len(split_cells(rows[0])) >= 3 else ""
+        columns = len(split_cells(header)) if header else 0
         body = rows[1:] if header else rows
         budget = self.chunk_size - len(header)
         groups: list[str] = []
+        # The group row in force when each group started, so a cut that
+        # separates rows from their group row can put it back.
+        starts: list[str] = []
         group: list[str] = []
         size = 0
+        divider = ""
+        opened_with = ""
         for row in body:
             if group and size + len(row) + 1 > budget:
                 groups.append("\n".join(group))
+                starts.append(opened_with)
                 group, size = [], 0
+                opened_with = divider
+            if self._is_group_row(row, columns):
+                divider = row
             if len(row) > budget:
                 # One oversized cell, e.g. a long description: split its text.
                 groups.extend(self.chunk_text(row))
@@ -217,14 +238,28 @@ class DocumentChunker:
             size += len(row) + 1
         if group:
             groups.append("\n".join(group))
+            starts.append(opened_with)
         if not header:
             return [("", quote) for quote in groups]
         if not groups:
             return [("", header)]
+
+        def context_for(index: int) -> str:
+            # Only a cut that stranded rows needs the group row put back. A
+            # group whose own first row names its group already says so, and
+            # labelling it with the previous group would be worse than silence.
+            carried = starts[index] if index < len(starts) else ""
+            first = next(
+                (line for line in groups[index].splitlines() if line.strip()), ""
+            )
+            if not carried or self._is_group_row(first, columns):
+                return header
+            return f"{header}\n{carried}"
+
         # The first group reads the header as its own first row; later groups
         # carry it as context so their columns still have names.
         return [("", f"{header}\n{groups[0]}")] + [
-            (header, quote) for quote in groups[1:]
+            (context_for(index), quote) for index, quote in enumerate(groups[1:], 1)
         ]
 
     def _merge_small(

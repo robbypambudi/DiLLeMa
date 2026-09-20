@@ -113,18 +113,18 @@ class Settings(BaseSettings):
     # Hits from the probe search scored by the cross-encoder to decide scope.
     # Small on purpose -- the full rerank scores RETRIEVAL_CANDIDATES per query.
     SCOPE_PROBE_CANDIDATES: int = Field(default=8, ge=1, le=50)
-    # Calibrated on this deployment (evaluation/scope_calibration.py, 29 real
-    # questions x 2 live collections): out-of-scope pairs top out at 0.055 and
-    # the lowest self-contained in-scope question scores 0.418, so the gap is
-    # wide and empty. 0.02 let two real out-of-scope questions through.
-    #
-    # Note this now sits ABOVE RERANK_MIN_SCORE, so the gate no longer inherits
-    # the guarantee that it cannot reject what the full pipeline would accept:
-    # a question scoring 0.05-0.1 on the bare probe is stopped before the
-    # rewrite that might have found its evidence. Nothing in the measured
-    # traffic falls in that band, but a corpus where it does wants a lower
-    # value -- re-run the calibration rather than assuming this one transfers.
-    SCOPE_GATE_MIN_SCORE: float = Field(default=0.1, ge=0.0, le=1.0)
+    # Calibrated, then corrected by a real false rejection. The 29-question
+    # sample suggested 0.1 was safe, but it held no aggregate questions: on the
+    # live index "Apa saja matakuliah pada semester 3?" scores 0.0285 and was
+    # refused as out of scope, while the highest genuinely out-of-scope pair
+    # measured 0.0554. A legitimate question scoring BELOW an out-of-scope one
+    # means no threshold separates the two classes, so this one is set to fail
+    # open: the gate is a cost optimisation, and telling a user their valid
+    # question is out of scope costs far more than reranking a hopeless one,
+    # which the relevance floor and the grounded prompt still refuse to answer.
+    # At 0.01: 0 false rejections that another branch does not already handle,
+    # and 27 of 29 out-of-scope questions still stopped early.
+    SCOPE_GATE_MIN_SCORE: float = Field(default=0.01, ge=0.0, le=1.0)
     # Above this, the question retrieves well on its own and the conversation
     # is left out of the search entirely. Carrying a topic into a question that
     # already has one is what drags a topic switch back to the old document.
