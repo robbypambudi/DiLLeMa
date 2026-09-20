@@ -1,6 +1,7 @@
 """Retrieve and rank source evidence independently of answer generation."""
 
 import json
+import re
 from functools import cached_property
 from uuid import UUID
 
@@ -18,6 +19,20 @@ MAX_PAGES_FOR_GENERATOR = 4
 
 def _ignore_stage(stage: str, **detail) -> None:
     """Default progress sink for callers that do not report retrieval stages."""
+
+
+def _resolves_nothing(rewritten: str, question: str) -> bool:
+    """Whether a rewrite added nothing the original question did not have.
+
+    An echo and a truncation both leave the follow-up as context-dependent as
+    it started, so neither may replace the carried topic.
+    """
+    if not rewritten.strip():
+        return True
+    def words(text: str) -> set[str]:
+        return set(re.findall(r"[^\W_]+", text.lower()))
+
+    return not (words(rewritten) - words(question))
 
 
 def _log_evidence_trace(payload, candidates, ranked, packed, reason):
@@ -332,7 +347,15 @@ class RetrievalService:
         if not settings.FOLLOWUP_REWRITE:
             report("rewritten", query=carried)
             return carried
-        rewritten = self.standalone_question.rewrite(question, history) or carried
+        rewritten = self.standalone_question.rewrite(question, history) or ""
+        if _resolves_nothing(rewritten, question):
+            # A small model often echoes the question back, or shortens it.
+            # Measured against a served 0.8B: "Selain itu siapa lagi?" came
+            # back as "Siapa lagi?" and "Apa saja materi yang dipelajari di
+            # dalamnya?" unchanged, which then retrieved another course
+            # entirely. An echo resolved no reference, so the carried topic is
+            # still the better search string -- never discard it for a no-op.
+            rewritten = carried
         report("rewritten", query=rewritten)
         return rewritten
 
