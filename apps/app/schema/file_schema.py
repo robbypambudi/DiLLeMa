@@ -44,6 +44,8 @@ class ResponseFiles(BaseModel):
     collection_id: uuid.UUID
     processing_started_at: Optional[datetime] = None
     processing_ended_at: Optional[datetime] = None
+    # Stage and counts while indexing runs; absent once it is finished.
+    progress: Optional[dict] = None
 
     class Config:
         from_attributes = True

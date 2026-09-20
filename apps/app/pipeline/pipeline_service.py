@@ -9,6 +9,10 @@ from app.repositories.files_repository import FilesRepository
 from rag.nlp.doc_parse import document_pages, read_sections
 from rag.qdrant.client import QdrantHttpClient
 
+# Chunks embedded and upserted per round. Small enough that a long document
+# reports progress while it works, large enough that batching costs nothing.
+INDEX_BATCH = 32
+
 
 class PipelineService:
     def __init__(
@@ -26,6 +30,21 @@ class PipelineService:
             self.embedding_model = embedding_model
         if doc_chunker is not None:
             self.doc_chunker = doc_chunker
+
+    def _progress(self, file_id, stage: str, **detail) -> None:
+        """Say which part of ingestion is running, for the file list to show.
+
+        Written to the file row rather than held in memory: the upload request
+        has already returned, the work runs elsewhere, and the browser learns
+        about it by polling. Counts and stage names only -- never page text.
+        """
+        try:
+            self.file_repository.update_fields(
+                file_id, {"metadatas": {"progress": {"stage": stage, **detail}}}
+            )
+        except Exception as exc:
+            # Progress is a courtesy; losing it must not fail the ingestion.
+            logger.warning("Could not record progress ({})", type(exc).__name__)
 
     @cached_property
     def doc_chunker(self):
@@ -53,7 +72,9 @@ class PipelineService:
             )
             logger.info("Updated file status to processing for file: {}", files.id)
 
+            self._progress(files.id, "reading")
             sections = read_sections(files.file_path, files.file_type)
+            self._progress(files.id, "chunking", sections=len(sections))
             chunks = self.doc_chunker.chunk_sections(
                 sections, file_name=files.file_name
             )
@@ -96,13 +117,20 @@ class PipelineService:
                 for item in chunks
             ]
             logger.info("Preparing to add chunks to Qdrant for file: {}", files.id)
-            self.qdrant_client.add_documents(
-                ids=ids,
-                documents=documents,
-                metadatas=metadata,
-                collection_name=vectordb_collection_name,
-                embedding_function=self.embedding_model.encode,
-            )
+            # Batched so a long document reports how far it has got, and so
+            # one oversized embedding call cannot hold the whole file in memory.
+            self._progress(files.id, "indexing", done=0, total=len(chunks))
+            for start in range(0, len(chunks), INDEX_BATCH):
+                stop = min(start + INDEX_BATCH, len(chunks))
+                self.qdrant_client.add_documents(
+                    ids=ids[start:stop],
+                    documents=documents[start:stop],
+                    metadatas=metadata[start:stop],
+                    collection_name=vectordb_collection_name,
+                    embedding_function=self.embedding_model.encode,
+                )
+                # After the batch, so the count means work finished, not begun.
+                self._progress(files.id, "indexing", done=stop, total=len(chunks))
             logger.info("Added chunks to Qdrant for file: {}", files.id)
             # Update the file status to completed
             self.file_repository.update_fields(

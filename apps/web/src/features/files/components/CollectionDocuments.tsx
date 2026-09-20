@@ -74,7 +74,7 @@ export function CollectionDocuments({ files, uploading, uploadFiles, retry, onDe
                     <td className="min-w-[180px] break-all font-medium">{file.file_name}</td>
                     <td className="text-muted-foreground">{file.file_type}</td>
                     <td className="whitespace-nowrap text-muted-foreground">{formatSize(file.file_size)}</td>
-                    <td><StatusBadge status={file.status} /></td>
+                    <td><StatusBadge status={file.status} progress={file.progress} /></td>
                     <td className="whitespace-nowrap text-muted-foreground">
                       {file.status === 'completed' && file.processing_ended_at
                         ? new Date(file.processing_ended_at).toLocaleString()

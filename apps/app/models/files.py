@@ -26,5 +26,10 @@ class Files(BaseModel, table=True):
         back_populates="files",
     )
 
+    @property
+    def progress(self) -> Optional[dict]:
+        """Which part of ingestion is running, while `status` is processing."""
+        return (self.metadatas or {}).get("progress")
+
     def normalize(self):
         self.file_name = self.file_name.lower()
