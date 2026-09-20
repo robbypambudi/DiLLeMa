@@ -13,6 +13,10 @@ const STAGES: Record<string, { running: (detail: StageDetail) => string; done: (
     running: (detail) => LOCAL_INTENT[String(detail.intent ?? '')] ?? LOCAL_INTENT[''],
     done: (detail) => LOCAL_INTENT[String(detail.intent ?? '')] ?? LOCAL_INTENT[''],
   },
+  rewritten: {
+    running: (detail) => `Searching as “${detail.query ?? ''}”`,
+    done: (detail) => `Searched as “${detail.query ?? ''}”`,
+  },
   following_up: {
     running: () => 'Reading this as a follow-up',
     done: () => 'Read this as a follow-up',

@@ -305,7 +305,7 @@ class RetrievalService:
                     with_topic is not None
                     and with_topic >= settings.SCOPE_FOLLOWUP_MIN_SCORE
                 ):
-                    return self._standalone(question, carried, history)
+                    return self._standalone(question, carried, history, report)
 
         # Not self-sufficient and not a follow-up: fall back to the plain gate,
         # which must never reject what it would have allowed before.
@@ -318,16 +318,23 @@ class RetrievalService:
         )
         return reject("no_relevant_passage")
 
-    def _standalone(self, question: str, carried: str, history: list) -> str:
+    def _standalone(self, question: str, carried: str, history: list, report) -> str:
         """The follow-up as one self-contained question.
 
         The carried string is the fallback, not the goal: it searches well only
         while the topic holds, which is exactly what a rewrite makes explicit.
+
+        The rewrite is reported back with its text, unlike every other stage:
+        it is the asker's own question restated, returned over their own
+        stream, and being told "rephrased" without being told *how* leaves
+        them unable to tell a good rewrite from one that changed the subject.
         """
         if not settings.FOLLOWUP_REWRITE:
+            report("rewritten", query=carried)
             return carried
-        rewritten = self.standalone_question.rewrite(question, history)
-        return rewritten or carried
+        rewritten = self.standalone_question.rewrite(question, history) or carried
+        report("rewritten", query=rewritten)
+        return rewritten
 
     def retrieve(
         self,
