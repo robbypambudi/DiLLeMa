@@ -51,6 +51,10 @@ def main():
     (args.results / "analysis.json").write_text(json.dumps(result, indent=2))
     root = Path(__file__).resolve().parents[2]
     paths = [
+        "apps/rag/evidence.py",
+        "apps/rag/llm/chat_model.py",
+        "apps/rag/nlp/quote_select.py",
+        "apps/app/pipeline/pipeline_service.py",
         "apps/rag/nlp/doc_chunking.py",
         "apps/rag/nlp/doc_parse.py",
         "apps/rag/nlp/structure.py",

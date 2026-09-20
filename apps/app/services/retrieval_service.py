@@ -9,29 +9,118 @@ from loguru import logger
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.schema.question_schema import CreateQuestion
+from rag.evidence import source_key
 
 MAX_PAGES_FOR_GENERATOR = 4
 
 
+def _log_evidence_trace(payload, candidates, ranked, packed, reason):
+    """Identifiers and scores only; never log document text or the question."""
+    logger.info(
+        "RAG evidence trace: {}",
+        json.dumps(
+            {
+                "question_id": str(getattr(payload, "question_id", "")),
+                "collection_id": str(payload.collection_id),
+                "reason": reason,
+                "candidate_count": len(candidates),
+                "ranked": [
+                    {
+                        "chunk_id": p[2].get("chunk_id"),
+                        "point_id": p[2].get("point_id"),
+                        "file_id": p[2].get("file_id"),
+                        "score": p[2].get("rerank_score"),
+                    }
+                    for p in ranked
+                ],
+                "packed": [
+                    {
+                        "file_id": p[2].get("file_id"),
+                        "parent_id": p[2].get("parent_id"),
+                        "document_version": p[2].get("document_version"),
+                        "chunk_ids": p[2].get("evidence_chunk_ids", []),
+                        "chars": len(p[1]),
+                    }
+                    for p in packed
+                ],
+            }
+        ),
+    )
+
+
 def pack_parent_pages(pairs: list, max_pages: int = MAX_PAGES_FOR_GENERATOR) -> list:
-    """Search on leaf chunks; send one parent page per hit to the generator."""
-    packed = []
-    seen = set()
+    """Keep every retrieved leaf of selected parents, then add nearby context.
+
+    The 5,000-character expansion budget is soft: an oversized evidence span
+    is kept whole. Never trade away a matched leaf for the beginning of a page.
+    """
+    if max_pages <= 0:
+        return []
+    groups = {}
     for pair in pairs:
-        meta = dict(pair[2] if len(pair) > 2 else {})
-        file_id = str(meta.get("file_id") or meta.get("file_name") or "")
-        key = (file_id, meta.get("page"), meta.get("claim_id"))
-        if key in seen:
+        key = source_key(pair)
+        if key not in groups and len(groups) >= max_pages:
             continue
-        seen.add(key)
-        parent = str(meta.get("page_text") or "").strip()
-        quote = str(meta.get("quote") or "").strip()
-        body = parent or str(pair[1] or "")
-        if parent and quote and quote not in parent:
-            body = f"{quote}\n\n{parent}"
-        packed.append([pair[0], body, meta])
-        if len(packed) >= max_pages:
-            break
+        groups.setdefault(key, []).append(pair)
+
+    packed = []
+    for group in groups.values():
+        meta = dict(group[0][2] if len(group[0]) > 2 else {})
+        parts = []
+        windows = []
+        spans = []
+        citation_texts = []
+        for pair in group:
+            item = pair[2] if len(pair) > 2 else {}
+            leaf = str(item.get("evidence_text") or pair[1] or "").strip()
+            citation_texts.append(leaf)
+            context = str(item.get("evidence_context") or "").strip()
+            if context and context not in leaf:
+                leaf = f"{context}\n{leaf}"
+            # Claim formatting carries qualifiers and must not be replaced by
+            # just its quotation or a neighbouring vector page.
+            if item.get("claim_id"):
+                leaf = str(pair[1] or "").strip()
+            if leaf and not any(leaf in part for part in parts):
+                parts = [part for part in parts if part not in leaf]
+                parts.append(leaf)
+            parent = str(
+                item.get("parent_window") or item.get("page_text") or ""
+            ).strip()
+            if parent and not item.get("claim_id"):
+                windows.append(parent)
+                citation_texts.append(parent)
+            spans.append(
+                {
+                    key: item.get(key)
+                    for key in (
+                        "chunk_id",
+                        "section_id",
+                        "source_start",
+                        "source_end",
+                        "offset_basis",
+                    )
+                }
+            )
+        for window in windows:
+            expanded = [part for part in parts if part not in window]
+            if any(window in part for part in expanded):
+                continue
+            # Source context precedes a detached leaf only when it contains
+            # that leaf. Otherwise put the matched evidence first.
+            candidate = expanded + [window]
+            if len("\n\n".join(candidate)) <= 5000:
+                parts = candidate
+        body = "\n\n".join(parts)
+        meta["evidence_spans"] = spans
+        meta["evidence_chunk_ids"] = [s["chunk_id"] for s in spans if s["chunk_id"]]
+        # Citation selection sees exactly the evidence the generator saw.
+        # Keep canonical slices separate: table headers added to a late row
+        # must not become one fictitious contiguous quotation.
+        meta["citation_texts"] = list(
+            dict.fromkeys(text for text in citation_texts if text and text in body)
+        )
+        packed.append([group[0][0], body, meta])
     return packed
 
 
@@ -90,7 +179,9 @@ class RetrievalService:
 
         return ReRanking()
 
-    def retrieve(self, payload: CreateQuestion, using_augment_query: bool | None = False):
+    def retrieve(
+        self, payload: CreateQuestion, using_augment_query: bool | None = False
+    ):
         """Hybrid leaf retrieval, then parent-page packing for generation.
 
         `using_augment_query=None` defers to the `QUERY_AUGMENTATION` setting.
@@ -121,7 +212,8 @@ class RetrievalService:
                 limit=settings.RETRIEVAL_CANDIDATES,
             )
             for hit in search_result:
-                metadata = hit.payload or {}
+                metadata = dict(hit.payload or {})
+                metadata.setdefault("point_id", str(hit.id))
                 text = metadata.get("document", "")
                 if not text:
                     continue
@@ -163,6 +255,7 @@ class RetrievalService:
 
         pairs = list(candidates.values())
         if not pairs:
+            _log_evidence_trace(payload, [], [], [], "no_candidates")
             return []
         # The question and its translation: keyword rewrites widen the search,
         # but scoring every candidate against every rewrite multiplies the
@@ -175,12 +268,15 @@ class RetrievalService:
             **rerank_options,
         )
         if not ranked:
+            _log_evidence_trace(payload, pairs, [], [], "below_relevance_floor")
             logger.info(
                 "No evidence cleared the relevance floor ({}) for collection {}",
                 settings.RERANK_MIN_SCORE,
                 payload.collection_id,
             )
             return []
-        return pack_parent_pages(
+        packed = pack_parent_pages(
             drop_weak_evidence(ranked, settings.RERANK_RELATIVE_FLOOR)
         )
+        _log_evidence_trace(payload, pairs, ranked, packed, "packed")
+        return packed

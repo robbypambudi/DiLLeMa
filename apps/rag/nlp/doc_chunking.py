@@ -15,6 +15,10 @@ decide that here:
   are folded into their neighbour.
 """
 
+import hashlib
+import json
+import re
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
 
@@ -24,6 +28,7 @@ from rag.nlp.tables import clean_tables, is_table_line, split_cells, table_title
 
 PAGE_TEXT_CHARS = 5000
 QUOTE_CHARS = 350
+CHUNK_SCHEMA_VERSION = "evidence-v2"
 
 
 class DocumentChunker:
@@ -72,10 +77,17 @@ class DocumentChunker:
         if units and all(page is not None for page, *_ in units):
             bodies = strip_boilerplate(bodies)
 
+        # Version the extracted document, not its file name. Offsets below are
+        # Unicode character offsets in a cleaned unit, not PDF byte offsets.
+        version = hashlib.sha256(
+            json.dumps(units, ensure_ascii=False).encode()
+        ).hexdigest()
         chunks: list[dict] = []
         carried = ""
         previous_outer = None
-        for (page, outer, _, page_label), body in zip(units, bodies):
+        for unit_index, ((page, outer, _, page_label), body) in enumerate(
+            zip(units, bodies)
+        ):
             # A new Markdown/DOCX section starts its own heading scope.
             if outer != previous_outer:
                 carried = ""
@@ -95,7 +107,28 @@ class DocumentChunker:
                 section = " / ".join(part for part in (outer, heading) if part)
                 for context, quote in self._split_block(block):
                     pieces.append((section, context, quote))
-            for section, context, quote in self._merge_small(pieces):
+            parent_id = hashlib.sha256(f"{version}:{unit_index}".encode()).hexdigest()
+            cursor = 0
+            for piece_index, (section, context, quote) in enumerate(
+                self._merge_small(pieces)
+            ):
+                # Splitting may change whitespace. Only publish offsets when
+                # a contiguous span can be verified against canonical text.
+                pattern = r"\s+".join(re.escape(word) for word in quote.split())
+                match = re.compile(pattern).search(body, cursor) if pattern else None
+                start, end = (match.start(), match.end()) if match else (None, None)
+                evidence = body[start:end] if match else quote
+                if match:
+                    cursor = start + 1  # permit overlap, distinguish repeated passages
+                window_start = (
+                    max(0, start - max(0, PAGE_TEXT_CHARS - (end - start)) // 2)
+                    if match
+                    else 0
+                )
+                window_end = min(
+                    len(body), window_start + max(PAGE_TEXT_CHARS, len(evidence))
+                )
+                window = body[window_start:window_end] if match else ""
                 chunks.append(
                     {
                         "text": self._chunk_text(section, context, quote),
@@ -104,6 +137,20 @@ class DocumentChunker:
                         "section": section,
                         "quote": quote[:QUOTE_CHARS],
                         "page_text": body[:PAGE_TEXT_CHARS],
+                        "chunk_schema_version": CHUNK_SCHEMA_VERSION,
+                        "document_version": version,
+                        "parent_id": parent_id,
+                        "section_id": hashlib.sha256(
+                            f"{parent_id}:{section}".encode()
+                        ).hexdigest(),
+                        "chunk_id": f"{parent_id}:{piece_index}",
+                        "source_start": start,
+                        "source_end": end,
+                        "offset_basis": "cleaned_unit_unicode",
+                        "evidence_text": evidence,
+                        "evidence_context": context,
+                        "parent_window": window,
+                        "parent_window_start": window_start if match else None,
                     }
                 )
         return chunks

@@ -152,10 +152,25 @@ Backend rules:
   cleanup must also happen if startup fails.
 - Attribute citations from the finished answer, not from retrieval. Report only
   the sources whose `[Sn]` marker the answer wrote, keeping each source's
-  original number so the markers still resolve; an answer with no markers
-  reports the best-ranked source alone. Quotes are chosen at citation time
-  against the claim that cites them and must stay verbatim slices of the page,
+  original number so the markers still resolve; an answer with no valid markers
+  reports no sources. Strip model-written source footers before attribution.
+  Quotes are chosen at citation time against the claim that cites them and
+  must stay verbatim slices of an individual source window, never concatenated
+  excerpts from disjoint windows,
   because the viewer highlights a quote by searching the rendered page for it.
+  A marker attributes a source; it does not establish semantic support.
+- Packing and citation labels share file/version/parent identity. Keep all
+  retrieved leaves of selected parents, including late leaves beyond the stored
+  page prefix, and keep graph claims separate. New chunks carry `evidence-v2`
+  metadata and verified Unicode offsets in the cleaned extraction unit.
+- The answer prompt is versioned in `rag/llm/chat_model.py`. Keep demonstrations
+  fictional and outside the final evidence message. Source text is escaped
+  inside labelled elements; this preserves boundaries but does not guarantee
+  that a model resists instructions inside a source. Prompt changes must be
+  checked with actual generated answers, including missing evidence, negation,
+  conflicting rules, and forged citation labels. Lexical overlap and valid
+  citation numbers are not semantic validation. The small-model checks live in
+  `evaluation/prompt_eval.py`; preserve earlier results when tuning templates.
 - Cite the page label printed on the page and navigate by the physical index.
   `pages` carries the index, `page_labels` the label, in the same order.
 - Evidence scoring below `RERANK_MIN_SCORE` is dropped, and empty retrieval must

@@ -1,0 +1,21 @@
+{
+  "apps/rag/evidence.py": "88f8ec02f4b057a47b4d3c37ba92349fad16327ab4a5176b13e4dc79984493eb",
+  "apps/rag/llm/chat_model.py": "3fe6c09cca6ef871b9a1ad0f6e8858c2bae0963fc332ffdaadfb4a052d9abd66",
+  "apps/rag/nlp/quote_select.py": "ae6df0f729aeed8ebe385575491e89c5a7badfe9d9ab12cc173cfbd444ed6464",
+  "apps/app/pipeline/pipeline_service.py": "0d7fd05994a0bfeadadd27a14d59e3958fb0d5c49f7d56217135c96a49224dd5",
+  "apps/rag/nlp/doc_chunking.py": "0a2657df4ec58818e203ecb83b3649a3293ed2f28587cc30e147b3ace54100da",
+  "apps/rag/nlp/doc_parse.py": "9a42d3a826903c7346a30f82222ffcc30b2c30ab100f63e3e975be6216ba51b8",
+  "apps/rag/nlp/structure.py": "276e263bf3c04fa0f959d2ec28a88a049a23fcb739b466cb2e018bf1ce8dbc44",
+  "apps/rag/nlp/tables.py": "d7dc8d71f23c5b2e3ae4b96691dfa6170c850bbef8561d8fd7a16b1a62004d99",
+  "apps/rag/nlp/boilerplate.py": "e0fef211ef0efcde52571d9a0ca0cfb4602db94329d5431926ed81c63c35f4b1",
+  "apps/rag/nlp/tokens.py": "74697826d405e4e4cf5183c08723d2a97660e3266a97d128e15ee13f89a527a4",
+  "apps/rag/nlp/stemmer.py": "ff5cdafa1872573c486ab399f1f2dc38f53945addae0be5274d5fa28c5be3e9b",
+  "apps/rag/embedding/default_embedding.py": "7d3f93e2f132d675fc0f05c7eaf9fbaf6a1078068fbc7c8c937bd468108d0ad0",
+  "apps/rag/embedding/sparse_bm25.py": "4ccc0b9284da89b3d433682dbb6f557e4841f3eb3900b0bd1139f6a9a9cb217c",
+  "apps/rag/qdrant/client/__init__.py": "b39035c5a0eb8bedb2eff42a7c151dd569bb7345d7f441279a18acb6f8c86d53",
+  "apps/rag/llm/re_rank.py": "8849d68c2e4768c01ab557492cd741b72e0909274cd1424db366acdbc2898297",
+  "apps/app/services/retrieval_service.py": "e48ff8434c8c7144f36e9ddf856233446a63bb2e33f178261dd5293e78dff178",
+  "apps/evaluation/public_rag_eval.py": "ff32e43bc923925cf91b4921f14608f8780fe6d37fe2ab9f633bb1615054b25c",
+  "apps/evaluation/rag_integrity_probes.py": "b818d63d7000e1ddc3f85be7f6d2430c3588e76ad705e3270ce3eedfd141cd1d",
+  "apps/evaluation/public_rag_controls.py": "9c39cb8fe15c5bbb1968868d0f295dc23c5a94d6a934d197b03af77ccf63297b"
+}

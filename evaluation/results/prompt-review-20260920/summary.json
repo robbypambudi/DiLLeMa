@@ -1,0 +1,45 @@
+{
+  "model": [
+    "Qwen/Qwen2.5-0.5B-Instruct",
+    "7ae557604adf67be50417f59c2c2f167def9a775"
+  ],
+  "seed": 20260920,
+  "decoding": "greedy, BF16, one request at a time; answer 256 tokens, rewrite 120",
+  "limitations": "10 development + 6 heldout synthetic answer cases and 4 development rewrite cases; lexical checks only; no production sampling, retrieval, semantic judge, or prompt-injection security guarantee",
+  "metrics": {
+    "before": {
+      "answer": {
+        "n": 16,
+        "required_present": 12,
+        "forbidden_absent": 13,
+        "citation_labels_match": 4,
+        "token_limit": 0,
+        "mean_input_tokens": 355.9375
+      },
+      "rewrite": {
+        "n": 4,
+        "three_labels": 4,
+        "identifiers_preserved": 4,
+        "token_limit": 0,
+        "mean_input_tokens": 246.0
+      }
+    },
+    "after": {
+      "answer": {
+        "n": 16,
+        "required_present": 12,
+        "forbidden_absent": 14,
+        "citation_labels_match": 11,
+        "token_limit": 0,
+        "mean_input_tokens": 659.8125
+      },
+      "rewrite": {
+        "n": 4,
+        "three_labels": 4,
+        "identifiers_preserved": 4,
+        "token_limit": 0,
+        "mean_input_tokens": 396.0
+      }
+    }
+  }
+}

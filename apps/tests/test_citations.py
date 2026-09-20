@@ -45,7 +45,9 @@ class CitedSourceTests(unittest.TestCase):
         ]
 
     def test_only_sources_the_answer_cites_are_reported(self):
-        items = OpenAIChat.source_items(self.pairs, "<li>Anggaran Rp 45 miliar [S1].</li>")
+        items = OpenAIChat.source_items(
+            self.pairs, "<li>Anggaran Rp 45 miliar [S1].</li>"
+        )
         self.assertEqual([item["file_name"] for item in items], ["renstra.pdf"])
 
     def test_labels_keep_their_number_when_an_earlier_source_is_dropped(self):
@@ -54,19 +56,76 @@ class CitedSourceTests(unittest.TestCase):
         self.assertEqual([item["index"] for item in items], [2])
         self.assertEqual(items[0]["file_name"], "lain.pdf")
 
-    def test_an_answer_without_markers_reports_only_the_best_source(self):
+    def test_an_answer_without_markers_does_not_invent_attribution(self):
         items = OpenAIChat.source_items(self.pairs, "Jawaban tanpa penanda apa pun.")
-        self.assertEqual([item["index"] for item in items], [1])
+        self.assertEqual(items, [])
+        self.assertEqual(OpenAIChat.source_items(self.pairs, ""), [])
 
     def test_retrieval_only_callers_still_see_every_source(self):
         self.assertEqual(len(OpenAIChat.source_items(self.pairs)), 2)
 
     def test_a_model_written_source_list_cannot_cite_itself(self):
         answer = "<p>Jawaban.</p><p><b>Sumber konteks:</b></p><ul><li>[S2] lain.pdf</li></ul>"
-        items = OpenAIChat.source_items(
-            self.pairs, OpenAIChat.strip_source_footer(answer)
+        items = OpenAIChat.source_items(self.pairs, answer)
+        self.assertEqual(items, [])
+
+    def test_nonexistent_source_number_does_not_fall_back(self):
+        self.assertEqual(OpenAIChat.source_items(self.pairs, "Klaim [S999]."), [])
+
+    def test_same_filename_different_files_have_different_labels(self):
+        pairs = [
+            pair("rules.pdf", 1, "A", "Aturan A.", file_id="a"),
+            pair("rules.pdf", 1, "B", "Aturan B.", file_id="b"),
+        ]
+        chat = object.__new__(OpenAIChat)
+        self.assertEqual(len(chat._source_labels(pairs)), 2)
+        result = chat.source_items(pairs, "Berlaku aturan B [S2].")
+        self.assertEqual(result[0]["file_id"], "b")
+
+    def test_late_leaf_remains_available_for_citation(self):
+        from app.services.retrieval_service import pack_parent_pages
+
+        leaf = "Kode verifikasi adalah KODEBUKTI7391 untuk seluruh peserta."
+        packed = pack_parent_pages(
+            [
+                [
+                    "q",
+                    leaf,
+                    {
+                        "file_id": "a",
+                        "file_name": "long.pdf",
+                        "page": 1,
+                        "page_text": "Awal halaman tanpa kode.",
+                        "quote": "Kode verifikasi",
+                    },
+                ]
+            ]
         )
-        self.assertEqual([item["index"] for item in items], [1])
+        items = OpenAIChat.source_items(packed, "Kode verifikasi KODEBUKTI7391 [S1].")
+        self.assertIn("KODEBUKTI7391", items[0]["quote"])
+        self.assertIn(items[0]["quote"], leaf)
+
+    def test_unpaginated_sections_keep_prompt_and_citation_numbers_aligned(self):
+        from app.services.retrieval_service import pack_parent_pages
+
+        chunks = DocumentChunker().chunk_sections(
+            [
+                Section(None, "Biaya", "Biayanya 100 rupiah."),
+                Section(None, "Batas waktu", "Batas waktu 12 November 2027."),
+            ]
+        )
+        pairs = pack_parent_pages(
+            [
+                ["q", c["text"], dict(c, file_id="f", file_name="rules.md")]
+                for c in chunks
+            ]
+        )
+        chat = object.__new__(OpenAIChat)
+        messages = chat._prepare_messages("Batas waktu?", pairs)
+        self.assertIn("[S2]", messages[-1].content)
+        items = chat.source_items(pairs, "Batas waktu 12 November 2027 [S2].")
+        self.assertEqual(items[0]["section"], "Batas waktu")
+        self.assertEqual(items[0]["parent_id"], chunks[1]["parent_id"])
 
     def test_claims_are_attributed_per_list_item(self):
         claims = OpenAIChat.cited_claims(
@@ -101,12 +160,26 @@ class QuoteSelectionTests(unittest.TestCase):
 
     def test_sentence_spans_are_verbatim(self):
         self.assertTrue(
-            all(PAGE[start:end] == PAGE[start:end].strip() for start, end in sentence_spans(PAGE))
+            all(
+                PAGE[start:end] == PAGE[start:end].strip()
+                for start, end in sentence_spans(PAGE)
+            )
         )
 
     def test_graph_claims_without_a_page_keep_their_quote(self):
         items = OpenAIChat.source_items(
-            [["q", "Klaim", {"file_name": "rules.pdf", "page": 3, "quote": "aturan", "claim_id": "abc"}]],
+            [
+                [
+                    "q",
+                    "Klaim",
+                    {
+                        "file_name": "rules.pdf",
+                        "page": 3,
+                        "quote": "aturan",
+                        "claim_id": "abc",
+                    },
+                ]
+            ],
             "<li>Aturan berlaku [S1].</li>",
         )
         self.assertEqual(items[0]["quote"], "aturan")

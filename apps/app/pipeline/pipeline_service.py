@@ -54,10 +54,17 @@ class PipelineService:
             logger.info("Updated file status to processing for file: {}", files.id)
 
             sections = read_sections(files.file_path, files.file_type)
-            chunks = self.doc_chunker.chunk_sections(sections, file_name=files.file_name)
+            chunks = self.doc_chunker.chunk_sections(
+                sections, file_name=files.file_name
+            )
             if not chunks:
                 raise ValueError(f"No indexable text in file {files.id}")
-            logger.info("Chunked {} sections into {} windows for {}", len(sections), len(chunks), files.id)
+            logger.info(
+                "Chunked {} sections into {} windows for {}",
+                len(sections),
+                len(chunks),
+                files.id,
+            )
             pages_total = document_pages(files.file_path, files.file_type)
             pages_indexed = len({unit[0] for unit in sections if unit[0] is not None})
 
@@ -77,6 +84,7 @@ class PipelineService:
             documents = [item["text"] for item in chunks]
             metadata = [
                 {
+                    **{key: value for key, value in item.items() if key != "text"},
                     "file_name": files.file_name,
                     "file_id": str(files.id),
                     "page": item["page"],
@@ -106,6 +114,8 @@ class PipelineService:
                         "chunk_count": len(chunks),
                         "chunk_size": self.doc_chunker.chunk_size,
                         "chunk_overlap": self.doc_chunker.chunk_overlap,
+                        "chunk_schema_version": chunks[0].get("chunk_schema_version"),
+                        "document_version": chunks[0].get("document_version"),
                         # Pages without extractable text are skipped, not
                         # fatal; the gap is recorded so it can be seen.
                         "pages_total": pages_total,

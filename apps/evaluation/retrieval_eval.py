@@ -71,13 +71,9 @@ def index(client, embedding, pdf: Path, collection: str, chunker) -> int:
             documents=[item["text"] for item in part],
             metadatas=[
                 {
+                    **{key: value for key, value in item.items() if key != "text"},
                     "file_name": pdf.name,
                     "file_id": file_id,
-                    "page": item["page"],
-                    "page_label": item.get("page_label"),
-                    "section": item["section"],
-                    "quote": item["quote"],
-                    "page_text": item["page_text"],
                 }
                 for item in part
             ],

@@ -421,11 +421,136 @@ menghasilkan temuan yang tidak bergantung pada skor TyDi QA:
    prompt saja belum merupakan jaminan. Uji dokumen Indonesia nyata, tabel, OCR,
    pengecualian aturan, dan pertanyaan tanpa jawaban sebelum mengubah default.
 
-Perbaikan di atas adalah **rekomendasi hasil evaluasi**; eksperimen ini tidak
-mengubah pipeline produksi. Batas lain: corpus kecil berisi paragraf yang sudah
+Perbaikan di atas adalah **rekomendasi hasil evaluasi 18 September**; eksperimen
+awal tidak mengubah pipeline produksi. Implementasi tahap pertama dicatat di
+bawah. Batas lain: corpus kecil berisi paragraf yang sudah
 memiliki anotasi jawaban; tidak mengukur validitas fakta dunia nyata, konflik
 antardokumen, freshness, multi-hop, OCR/tabel, kualitas sitasi UI, atau skala indeks.
 Skor ini tidak menjamin kualitas pada dokumen pengguna.
+
+### Perbaikan integritas bukti — 20 September 2026
+
+Tahap pertama sudah diimplementasikan di kode aplikasi:
+
+- Parent packing mempertahankan **semua leaf hasil retrieval dari parent yang
+  terpilih**, termasuk leaf yang ditemukan setelah batas empat parent tercapai.
+  Konteks tambahan diambil di sekitar bukti, dengan anggaran lunak 5.000 karakter
+  per parent; bukti tidak dipotong agar muat. Ini belum anggaran berbasis token.
+- Identitas sumber memakai file ID, versi dokumen, dan parent/claim; bagian
+  Markdown/DOCX tanpa halaman serta dua file bernama sama tidak lagi disatukan.
+  Indeks lama tetap bisa dibaca dengan fallback identitas dan teks leaf.
+- Chunk baru menyimpan `chunk_schema_version=evidence-v2`, `document_version`,
+  `parent_id`, `section_id`, `chunk_id`, teks bukti lengkap, konteks header tabel,
+  serta window parent. Versi adalah SHA-256 unit hasil parsing, bukan hash file
+  asli. Offset `source_start`/`source_end` mengacu pada karakter Unicode unit
+  setelah pembersihan (`cleaned_unit_unicode`), bukan koordinat PDF. Offset yang
+  tidak dapat dicocokkan secara kontigu dibiarkan `null`.
+- Jawaban tanpa penanda sumber valid tidak lagi diberi sumber pertama secara
+  otomatis. Penomoran prompt dan sitasi memakai identitas yang sama; kutipan
+  dipilih dari window terpisah agar tidak menggabungkan potongan berjauhan
+  menjadi satu kutipan. Penanda `[Sn]` **belum membuktikan dukungan semantik**.
+- Log `RAG evidence trace` mencatat ID pertanyaan/collection, jumlah kandidat,
+  ID dan skor hasil rerank, serta versi/ID chunk yang masuk konteks. Trace ini
+  tidak memuat teks pertanyaan atau dokumen dan membantu melacak bukti yang hilang.
+
+Benchmark dijalankan ulang dengan dataset, split, model, dan konfigurasi yang
+sama seperti eksperimen awal; file pemilihan pertanyaan identik.
+
+| Pemeriksaan | Sebelum | Sesudah |
+| --- | ---: | ---: |
+| Dua bagian tanpa halaman tetap tersedia setelah packing | 1/2 | **2/2** |
+| Jawaban pada offset 6.646 bertahan setelah packing | Tidak | **Ya** |
+| TyDi QA: answer hit pipeline, 160 pertanyaan | 97,50% | 97,50% |
+| Qwen 0.5B: exact match, 80 pertanyaan | 36,25% | 36,25% |
+| Qwen 0.5B: token F1 | 47,29% | 47,29% |
+| Rata-rata token input Qwen | 347,475 | 347,475 |
+
+Hasil ini menunjukkan perbaikan pada kasus kehilangan bukti tanpa penurunan
+metrik benchmark, **belum peningkatan akurasi umum**. Paragraf pendek TyDi QA
+jarang memicu dua bug tersebut. Benchmark generasi tetap memakai prompt
+ekstraktif, bukan alur sitasi dashboard. Suite aplikasi menjalankan 176 tes:
+**144 lulus, 32 dilewati**, termasuk regresi provenance, tabel, packing, dan
+sitasi. Sebanyak 32 tes integrasi PostgreSQL dilewati karena database uji khusus
+belum dikonfigurasi; bagian tersebut belum diverifikasi pada putaran ini.
+
+[Ringkasan benchmark ulang](evaluation/results/rag-evidence-fix-20260920/summary.json),
+[hasil retrieval](evaluation/results/rag-evidence-fix-20260920/retrieval.jsonl),
+[jawaban mentah](evaluation/results/rag-evidence-fix-20260920/generation.jsonl),
+[probe integritas](evaluation/results/rag-evidence-fix-20260920/integrity-probes.json),
+[analisis](evaluation/results/rag-evidence-fix-20260920/analysis.json), dan
+[fingerprint kode akhir](evaluation/results/rag-evidence-fix-20260920/source-manifest.json)
+tersedia untuk diperiksa. Fingerprint mencakup penyempurnaan metadata kutipan
+setelah benchmark; penyempurnaan itu tidak mengubah teks konteks benchmark.
+
+**Penerapan:** restart aplikasi dengan kode baru untuk memakai packing/sitasi
+baru. Dokumen lama perlu **diindeks ulang** untuk mendapatkan metadata v2,
+window, dan offset lengkap. Uji dahulu pada collection terpisah dengan dokumen
+produksi yang diketahui bermasalah; bandingkan bukti, sitasi, dan jawaban sebelum
+memindahkan pemakaian. Tidak ada deployment atau reindex produksi yang dilakukan
+dalam eksperimen ini. Normalisasi BM25, manifest konfigurasi indeks lengkap,
+parsing layout/OCR, serta verifikasi semantik/abstention tetap pekerjaan berikutnya.
+
+### Evaluasi template prompt — 20 September 2026
+
+Prompt jawaban kini memakai versi `grounded-answer-2` dan perluasan query memakai
+`query-rewrite-2`. Prompt lama memaksa daftar, meminta sitasi hanya di butir,
+dan belum secara eksplisit menjaga negasi, pengecualian, atau lingkup waktu.
+Template baru meminta jawaban langsung, sitasi pada setiap kalimat faktual,
+pemeliharaan syarat/angka/negasi, penjelasan konflik, dan penolakan ketika jawaban
+tidak ada. Tiga contoh fiktif menunjukkan format jawaban dan penolakan; contoh
+terpisah dari pesan bukti terakhir.
+
+Bukti dibungkus dalam elemen sumber berlabel dengan delimiter yang di-escape.
+Nama file dan nomor halaman tetap tersedia untuk sitasi aplikasi, tetapi tidak
+lagi menambah teks input generator; bagian dokumen tetap disertakan sebagai
+konteks. Sumber tanpa nama juga mendapat label tersendiri agar tidak berbenturan
+dengan sumber lain. Ini pemisahan data, bukan jaminan keamanan terhadap instruksi
+dalam dokumen. Prompt query meminta nama, kode, tahun, negasi, dan batasan tetap
+dipertahankan; query asli tetap menjadi pencarian pertama. Prompt ekstraksi
+Knowledge Graph ditinjau dan dipertahankan beserta kewajiban review klaimnya.
+
+Perbandingan memakai Qwen2.5-0.5B-Instruct lokal, BF16, greedy decoding:
+**10 kasus pengembangan jawaban, 6 kasus tambahan yang tidak dipakai untuk
+penyempurnaan, dan 4 kasus rewrite**, masing-masing dijalankan sebelum/sesudah.
+Input, keluaran, serta parameter disimpan. Dua rancangan JSON dan satu iterasi
+awal delimiter dipertahankan sebagai artefak; versi panjang sempat membuat model
+menyalin struktur input. Hasil berikut menggabungkan kasus pengembangan dan
+tambahan, sehingga **bukan estimasi akurasi pada data independen**.
+
+| Pemeriksaan | Prompt lama | Prompt akhir |
+| --- | ---: | ---: |
+| Himpunan label sitasi sesuai harapan, 16 kasus | 4/16 | 11/16 |
+| Menolak empat kasus tanpa jawaban, dari pemeriksaan keluaran mentah | 0/4 | 4/4 |
+| Rewrite mempertahankan kode/tahun yang diperiksa | 4/4 | 4/4 |
+| Rata-rata token input jawaban pada fixture | 356 | 660 |
+
+**Batas yang ditemukan:** label benar bukan bukti jawaban benar. Model masih
+membalik larangan peserta nonaktif, tidak menjelaskan konflik dua biaya, dan
+meniru label palsu `[S999]`/`[S88]` dari teks dokumen. Pada kasus larangan tambahan,
+model malah mengulang pertanyaan. Rewrite juga masih salah menerjemahkan
+pengecualian biaya menjadi *penalty* serta kehilangan syarat `belum lulus`.
+Prompt baru belum menyelesaikan kegagalan tersebut. Aplikasi tidak menambahkan
+referensi untuk label yang tidak valid, tetapi itu belum memverifikasi isi
+jawaban atau menghapus penanda palsu dari teks generasi.
+
+Percobaan ini menguji penyusunan pesan aplikasi, tanpa retrieval; pengaturan
+sampling/streaming server produksi tidak diuji. Kontrol bukti kosong menguji
+model langsung; aplikasi tetap memiliki jalur penolakan tanpa generasi untuk
+retrieval kosong. Suite aplikasi: **147 tes lulus, 32 tes PostgreSQL dilewati**
+karena database uji khusus belum dikonfigurasi. Tidak dilakukan deployment.
+Perubahan prompt cukup diaktifkan dengan restart aplikasi, tanpa reindex.
+
+[Template sebelum](evaluation/results/prompt-review-20260920/templates-before.json),
+[template akhir](evaluation/results/prompt-review-20260920/templates-after.json),
+[respons lengkap](evaluation/results/prompt-review-20260920/responses.jsonl), dan
+[ringkasan pemeriksaan](evaluation/results/prompt-review-20260920/summary.json)
+dapat diperiksa. Untuk mengulang dengan cache model eksperimen sebelumnya:
+
+```bash
+mkdir -p evaluation/results/prompt-review-rerun
+cp evaluation/results/prompt-review-20260920/templates-before.json evaluation/results/prompt-review-rerun/
+apps/.venv/bin/python -u apps/evaluation/prompt_eval.py --out evaluation/results/prompt-review-rerun
+```
 
 ### Artefak dan pengulangan eksperimen
 

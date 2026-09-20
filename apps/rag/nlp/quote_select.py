@@ -104,3 +104,17 @@ def select_quote(
         cut = quote.rfind(" ", 0, max_chars)
         quote = quote[: cut if cut > MIN_QUOTE_CHARS else max_chars]
     return quote.strip()
+
+
+def select_evidence_quote(claim: str, texts: list[str], fallback: str = "") -> str:
+    """Choose a verbatim quote without joining disjoint source windows."""
+    terms = set(content_stems(strip_markup(claim)))
+    candidates = [select_quote(claim, text) for text in texts]
+    candidates = [quote for quote in candidates if quote]
+    if candidates:
+        return max(candidates, key=lambda quote: _score(terms, quote))
+    return (
+        fallback[:MAX_QUOTE_CHARS]
+        if fallback and any(fallback in text for text in texts)
+        else ""
+    )

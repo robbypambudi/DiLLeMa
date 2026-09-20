@@ -98,7 +98,10 @@ class QuestionIntegrationTests(unittest.TestCase):
         from rag.llm.chat_model import OpenAIChat
 
         self.payload = CreateQuestion(
-            question_id="test", question_text="Program A", collection_id=uuid4()
+            question_id="test",
+            question_text="Program A",
+            collection_id=uuid4(),
+            using_augment_query=False,
         )
         self.questions = Mock()
         self.questions.create.side_effect = lambda question: question
