@@ -9,6 +9,7 @@ from loguru import logger
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.schema.question_schema import CreateQuestion
+from app.services.scope_gate import trivial_reason
 from rag.evidence import source_key
 
 MAX_PAGES_FOR_GENERATOR = 4
@@ -183,6 +184,65 @@ class RetrievalService:
 
         return ReRanking()
 
+    def _search_into(self, candidates, seed_file_ids, collection, payload, query):
+        """Add one query's hits to the shared candidate pool, deduplicated."""
+        query_embedding = self.embedding_model.encode(query)
+        if hasattr(query_embedding, "ndim") and query_embedding.ndim > 1:
+            query_embedding = query_embedding[0]
+        search_result = self.qdrant_client.search(
+            collection_name=collection.vectordb_collection_name,
+            query_vector=query_embedding,
+            query_text=query,
+            limit=settings.RETRIEVAL_CANDIDATES,
+        )
+        for hit in search_result:
+            metadata = dict(hit.payload or {})
+            metadata.setdefault("point_id", str(hit.id))
+            text = metadata.get("document", "")
+            if not text:
+                continue
+            candidates.setdefault(str(hit.id), [payload.question_text, text, metadata])
+            try:
+                seed_file_ids.add(UUID(str(metadata.get("file_id"))))
+            except (ValueError, TypeError):
+                pass
+
+    def _in_scope(self, question: str, candidates: dict, report) -> bool:
+        """Decide on evidence whether the corpus covers the question at all.
+
+        Only the first `SCOPE_PROBE_CANDIDATES` hits are scored, against a
+        floor below `RERANK_MIN_SCORE`: the probe must never reject what the
+        full pipeline would have answered, so it settles the clear cases and
+        leaves the borderline ones to the rerank that follows.
+
+        Hits arrive in hybrid-fusion order, whose scores rank documents but do
+        not measure relevance -- hence the cross-encoder, on a pool small
+        enough that the saving is real.
+        """
+        probe = list(candidates.values())[: settings.SCOPE_PROBE_CANDIDATES]
+        if not probe:
+            report("out_of_scope", reason="empty_collection")
+            return False
+        report("checking", passages=len(probe))
+        try:
+            best = self.re_ranking.best_score(probe, question)
+        except Exception as exc:
+            # A probe that cannot run must not cost the user their answer.
+            logger.warning(
+                "Scope probe unavailable; continuing with full retrieval ({})",
+                type(exc).__name__,
+            )
+            return True
+        if best >= settings.SCOPE_GATE_MIN_SCORE:
+            return True
+        report("out_of_scope", reason="no_relevant_passage")
+        logger.info(
+            "Question rejected by scope probe (best {:.4f} < {})",
+            best,
+            settings.SCOPE_GATE_MIN_SCORE,
+        )
+        return False
+
     def retrieve(
         self,
         payload: CreateQuestion,
@@ -202,40 +262,44 @@ class RetrievalService:
                 f"Collection with ID {payload.collection_id} not found."
             )
 
+        reason = trivial_reason(payload.question_text)
+        if reason:
+            # Nothing was spent: no embedding, no search, no rewrite call.
+            report("out_of_scope", reason=reason)
+            logger.info("Question rejected before retrieval ({})", reason)
+            return []
+
         if using_augment_query is None:
             using_augment_query = settings.QUERY_AUGMENTATION
+
+        candidates = {}
+        seed_file_ids = set()
+        # The question alone goes first. Its hits are what the scope probe
+        # judges, and they stay in the pool, so a question that passes has
+        # paid for one search it would have run anyway.
+        report("searching", queries=1, collection=collection.collection_name)
+        self._search_into(
+            candidates, seed_file_ids, collection, payload, payload.question_text
+        )
+
+        if settings.SCOPE_GATE_ENABLED and not self._in_scope(
+            payload.question_text, candidates, report
+        ):
+            return []
+
+        queries = [payload.question_text]
         if using_augment_query:
             report("augmenting")
             queries = self.augment_query_generator.augment(payload.question_text)
-        else:
-            queries = [payload.question_text]
-
-        report("searching", queries=len(queries), collection=collection.collection_name)
-        candidates = {}
-        seed_file_ids = set()
-        for query in queries:
-            query_embedding = self.embedding_model.encode(query)
-            if hasattr(query_embedding, "ndim") and query_embedding.ndim > 1:
-                query_embedding = query_embedding[0]
-            search_result = self.qdrant_client.search(
-                collection_name=collection.vectordb_collection_name,
-                query_vector=query_embedding,
-                query_text=query,
-                limit=settings.RETRIEVAL_CANDIDATES,
-            )
-            for hit in search_result:
-                metadata = dict(hit.payload or {})
-                metadata.setdefault("point_id", str(hit.id))
-                text = metadata.get("document", "")
-                if not text:
-                    continue
-                candidates.setdefault(
-                    str(hit.id), [payload.question_text, text, metadata]
+            extra = [query for query in queries if query != payload.question_text]
+            if extra:
+                report(
+                    "searching",
+                    queries=len(extra),
+                    collection=collection.collection_name,
                 )
-                try:
-                    seed_file_ids.add(UUID(str(metadata.get("file_id"))))
-                except (ValueError, TypeError):
-                    pass
+            for query in extra:
+                self._search_into(candidates, seed_file_ids, collection, payload, query)
 
         graph_used = False
         if settings.KG_ENABLED and self.knowledge_repository:

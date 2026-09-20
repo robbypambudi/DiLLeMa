@@ -17,6 +17,10 @@ const STAGES: Record<string, { running: (detail: StageDetail) => string; done: (
     running: () => 'Checking the knowledge graph',
     done: () => 'Checked the knowledge graph',
   },
+  checking: {
+    running: () => 'Checking whether your documents cover this',
+    done: (detail) => `Checked ${plural(detail.passages, 'passage')} for a match`,
+  },
   ranking: {
     running: (detail) => `Ranking ${plural(detail.candidates, 'passage')}`,
     done: (detail) => `Ranked ${plural(detail.candidates, 'passage')}`,
@@ -33,6 +37,24 @@ const STAGES: Record<string, { running: (detail: StageDetail) => string; done: (
     running: () => 'No passage matched your question',
     done: () => 'No passage matched your question',
   },
+  out_of_scope: {
+    running: (detail) => outOfScope(detail),
+    done: (detail) => outOfScope(detail),
+  },
+}
+
+/** Why the question was stopped early, phrased for the person who asked it. */
+const OUT_OF_SCOPE: Record<string, string> = {
+  '': 'This question is outside the selected collection',
+  small_talk: 'No question to search for',
+  too_short: 'The question is too short to search',
+  no_words: 'The question has no words to search for',
+  empty_collection: 'This collection has no indexed documents',
+  no_relevant_passage: 'No document in this collection covers this',
+}
+
+function outOfScope(detail: StageDetail): string {
+  return OUT_OF_SCOPE[String(detail.reason ?? '')] ?? OUT_OF_SCOPE['']
 }
 
 function count(value: StageDetail[string] | undefined): number {

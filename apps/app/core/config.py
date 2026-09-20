@@ -107,6 +107,16 @@ class Settings(BaseSettings):
     # before searching, unless the request says otherwise. It is what reaches
     # English passages from an Indonesian question; it costs one short LLM call.
     QUERY_AUGMENTATION: bool = True
+    # Stop a question the corpus cannot answer before it costs the rewrite
+    # call and a full rerank: the cheap probe below decides, not the LLM.
+    SCOPE_GATE_ENABLED: bool = True
+    # Hits from the probe search scored by the cross-encoder to decide scope.
+    # Small on purpose -- the full rerank scores RETRIEVAL_CANDIDATES per query.
+    SCOPE_PROBE_CANDIDATES: int = Field(default=8, ge=1, le=50)
+    # Deliberately below RERANK_MIN_SCORE: the gate must never reject a
+    # question the full pipeline would have answered, so it only catches what
+    # is clearly outside the corpus. Raise it to reject more aggressively.
+    SCOPE_GATE_MIN_SCORE: float = Field(default=0.02, ge=0.0, le=1.0)
 
     KG_ENABLED: bool = False
     KG_LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")

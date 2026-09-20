@@ -25,6 +25,16 @@ from rag.llm.chat_model import OpenAIChat
 # How often the streaming turn looks for progress from the retrieval thread.
 STAGE_POLL_SECONDS = 0.05
 
+NO_EVIDENCE_ANSWER = (
+    "Maaf, saya tidak memiliki informasi yang cukup untuk menjawab pertanyaan ini."
+)
+# A question the corpus was never meant to answer is a different outcome from
+# one it answers poorly, and saying so stops the user from rephrasing in vain.
+OUT_OF_SCOPE_ANSWER = (
+    "Pertanyaan ini di luar cakupan dokumen pada koleksi yang dipilih. "
+    "Silakan ajukan pertanyaan mengenai isi dokumen tersebut."
+)
+
 
 class QuestionsService(BaseService):
     """
@@ -109,8 +119,11 @@ class QuestionsService(BaseService):
             raise
 
     def _question_no_stream(self, payload: CreateQuestion, turn_id: UUID | None):
+        stages: list[str] = []
         re_ranked_pairs = self._before_question(
-            payload, using_augment_query=payload.using_augment_query
+            payload,
+            payload.using_augment_query,
+            lambda stage, **detail: stages.append(stage),
         )
 
         response = (
@@ -119,7 +132,7 @@ class QuestionsService(BaseService):
                 context_pairs=re_ranked_pairs,
             )
             if re_ranked_pairs
-            else "Maaf, saya tidak memiliki informasi yang cukup untuk menjawab pertanyaan ini."
+            else self._empty_answer(stages)
         )
         response = OpenAIChat.strip_source_footer(response)
         # Attribution reads the finished answer, so the footer is built from the
@@ -164,6 +177,11 @@ class QuestionsService(BaseService):
         yield "evidence", task.result()
 
     @staticmethod
+    def _empty_answer(stages: list[str]) -> str:
+        """Why there is no answer, in the words the user needs."""
+        return OUT_OF_SCOPE_ANSWER if "out_of_scope" in stages else NO_EVIDENCE_ANSWER
+
+    @staticmethod
     def _stage_event(stage: str, **detail):
         """A named SSE event, so progress never lands in the answer text."""
         return {
@@ -182,8 +200,10 @@ class QuestionsService(BaseService):
         status = "interrupted"
         try:
             re_ranked_pairs = []
+            stages: list[str] = []
             async for kind, item in self._retrieve_with_stages(payload):
                 if kind == "stage":
+                    stages.append(item.get("stage", ""))
                     yield {
                         "event": "status",
                         "data": json.dumps(item, ensure_ascii=False),
@@ -222,7 +242,7 @@ class QuestionsService(BaseService):
                         "data": json.dumps(sources, ensure_ascii=False),
                     }
             else:
-                accumulated_answer = "Maaf, saya tidak memiliki informasi yang cukup untuk menjawab pertanyaan ini."
+                accumulated_answer = self._empty_answer(stages)
                 yield {"data": accumulated_answer}
 
             await run_in_threadpool(

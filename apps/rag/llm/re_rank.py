@@ -49,6 +49,17 @@ class ReRanking:
             for score, pair in sorted_pairs[:top_results]
         ]
 
+    def best_score(self, pairs: list, query: str | None = None) -> float:
+        """The best relevance score in `pairs`, for a scope check before ranking.
+
+        Scoring stops at the best match, so the caller can decide whether the
+        corpus covers the question without paying for a full ranking pass.
+        """
+        if not pairs:
+            return 0.0
+        probe = [[query, pair[1]] for pair in pairs] if query else [pair[:2] for pair in pairs]
+        return max(float(score) for score in self.model.predict(probe))
+
     def _scores(self, pairs: list, queries: list[str] | None) -> list[float]:
         variants = [query for query in dict.fromkeys(queries or []) if query]
         if len(variants) < 2:
