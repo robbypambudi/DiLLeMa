@@ -81,6 +81,35 @@ class ConversationsRepository:
                 "turns": [turn.model_dump() for turn in turns],
             }
 
+    def recent_turns(
+        self, conversation_id: UUID, user_id: UUID, limit: int
+    ) -> list[tuple[str, str]]:
+        """The last answered turns, oldest first, as (question, answer) pairs.
+
+        Only completed turns count: a pending turn is the question being asked
+        right now, and an interrupted one has a partial answer that would be
+        read as settled fact in the next prompt.
+        """
+        if limit <= 0:
+            return []
+        with self.session_factory() as session:
+            self._owned(session, conversation_id, user_id)
+            rows = (
+                session.query(ConversationTurns)
+                .filter(
+                    ConversationTurns.conversation_id == conversation_id,
+                    ConversationTurns.status == "completed",
+                )
+                .order_by(ConversationTurns.sequence.desc())
+                .limit(limit)
+                .all()
+            )
+            return [
+                (turn.question_text, turn.answer or "")
+                for turn in reversed(rows)
+                if turn.question_text
+            ]
+
     def delete(self, conversation_id: UUID, user_id: UUID) -> None:
         with self.session_factory() as session:
             conversation = self._owned(session, conversation_id, user_id, lock=True)

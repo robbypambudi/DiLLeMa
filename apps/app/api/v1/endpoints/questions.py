@@ -21,8 +21,11 @@ def question(
     user: Users | None = Depends(get_optional_user),
     question_service: QuestionsService = Depends(Provide[Container.question_service]),
 ):
+    history = question_service.conversation_history(payload, user)
     turn_id = question_service.start_turn(payload, user)
-    question = question_service.question_no_stream(payload, turn_id=turn_id)
+    question = question_service.question_no_stream(
+        payload, turn_id=turn_id, history=history
+    )
     return BaseResponse(
         message="Questions retrieved successfully",
         data=QuestionResponse(
@@ -40,9 +43,14 @@ async def question_stream(
     user: Users | None = Depends(get_optional_user),
     question_service: QuestionsService = Depends(Provide[Container.question_service]),
 ):
+    # Read before the turn is opened, so the question being asked now cannot
+    # appear in its own history.
+    history = await run_in_threadpool(
+        question_service.conversation_history, payload, user
+    )
     turn_id = await run_in_threadpool(question_service.start_turn, payload, user)
     return EventSourceResponse(
-        question_service.question_stream(payload, turn_id=turn_id),
+        question_service.question_stream(payload, turn_id=turn_id, history=history),
         media_type="text/event-stream",
         ping=15,
         headers={

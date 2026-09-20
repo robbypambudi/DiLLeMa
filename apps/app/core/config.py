@@ -113,10 +113,33 @@ class Settings(BaseSettings):
     # Hits from the probe search scored by the cross-encoder to decide scope.
     # Small on purpose -- the full rerank scores RETRIEVAL_CANDIDATES per query.
     SCOPE_PROBE_CANDIDATES: int = Field(default=8, ge=1, le=50)
-    # Deliberately below RERANK_MIN_SCORE: the gate must never reject a
-    # question the full pipeline would have answered, so it only catches what
-    # is clearly outside the corpus. Raise it to reject more aggressively.
-    SCOPE_GATE_MIN_SCORE: float = Field(default=0.02, ge=0.0, le=1.0)
+    # Calibrated on this deployment (evaluation/scope_calibration.py, 29 real
+    # questions x 2 live collections): out-of-scope pairs top out at 0.055 and
+    # the lowest self-contained in-scope question scores 0.418, so the gap is
+    # wide and empty. 0.02 let two real out-of-scope questions through.
+    #
+    # Note this now sits ABOVE RERANK_MIN_SCORE, so the gate no longer inherits
+    # the guarantee that it cannot reject what the full pipeline would accept:
+    # a question scoring 0.05-0.1 on the bare probe is stopped before the
+    # rewrite that might have found its evidence. Nothing in the measured
+    # traffic falls in that band, but a corpus where it does wants a lower
+    # value -- re-run the calibration rather than assuming this one transfers.
+    SCOPE_GATE_MIN_SCORE: float = Field(default=0.1, ge=0.0, le=1.0)
+    # Above this, the question retrieves well on its own and the conversation
+    # is left out of the search entirely. Carrying a topic into a question that
+    # already has one is what drags a topic switch back to the old document.
+    # Measured on real traffic: self-contained questions scored 0.418-0.999 and
+    # the one real elliptic follow-up scored 0.007, so 0.3 sits in a wide gap.
+    SCOPE_SELF_SUFFICIENT_SCORE: float = Field(default=0.3, ge=0.0, le=1.0)
+    # A question that retrieves nothing alone but retrieves well once the
+    # conversation's topic is restored: a real follow-up, worth a rewrite.
+    # Below it the question is neither answerable nor a follow-up. Weakest of
+    # the three: only one real follow-up exists in this deployment's history
+    # (it scored 0.837), so re-run the calibration as conversations accumulate.
+    SCOPE_FOLLOWUP_MIN_SCORE: float = Field(default=0.5, ge=0.0, le=1.0)
+    # Rewrite follow-ups into standalone questions with the LLM. Off falls back
+    # to carrying the earlier questions, which is weaker on topic switches.
+    FOLLOWUP_REWRITE: bool = True
 
     KG_ENABLED: bool = False
     KG_LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "http://localhost:8000/v1")

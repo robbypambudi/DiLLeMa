@@ -1,0 +1,350 @@
+[
+  {
+    "kind": "in",
+    "q": "Berapa rasio jumlah mahasiswa pascasarjana dibandign dengan jumlah mahasiswa?",
+    "collection": "rencana_strategis_its",
+    "score": 0.9031286835670471
+  },
+  {
+    "kind": "out",
+    "q": "Berapa rasio jumlah mahasiswa pascasarjana dibandign dengan jumlah mahasiswa?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0005988876800984144
+  },
+  {
+    "kind": "in",
+    "q": "Bagaiamna dengan IKE 1?",
+    "collection": "rencana_strategis_its",
+    "score": 0.84690922498703
+  },
+  {
+    "kind": "out",
+    "q": "Bagaiamna dengan IKE 1?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0003388485638424754
+  },
+  {
+    "kind": "in",
+    "q": "Apa itu IKE 10?",
+    "collection": "rencana_strategis_its",
+    "score": 0.7818195819854736
+  },
+  {
+    "kind": "out",
+    "q": "Apa itu IKE 10?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0003898674913216382
+  },
+  {
+    "kind": "in",
+    "q": "Apa itu IKE 18?",
+    "collection": "rencana_strategis_its",
+    "score": 0.9359017610549927
+  },
+  {
+    "kind": "out",
+    "q": "Apa itu IKE 18?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0005982689908705652
+  },
+  {
+    "kind": "in",
+    "q": "Apa itu IKE 19",
+    "collection": "rencana_strategis_its",
+    "score": 0.9348596930503845
+  },
+  {
+    "kind": "out",
+    "q": "Apa itu IKE 19",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0033564807381480932
+  },
+  {
+    "kind": "in",
+    "q": "apa itu IKE 19?",
+    "collection": "rencana_strategis_its",
+    "score": 0.9203525185585022
+  },
+  {
+    "kind": "out",
+    "q": "apa itu IKE 19?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0033759481739252806
+  },
+  {
+    "kind": "in",
+    "q": "Apa itu RENIP 2021 sampai 2030",
+    "collection": "rencana_strategis_its",
+    "score": 0.9831236600875854
+  },
+  {
+    "kind": "out",
+    "q": "Apa itu RENIP 2021 sampai 2030",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0008773382287472486
+  },
+  {
+    "kind": "in",
+    "q": "Apa itu RENIP 2021 sampai 2030",
+    "collection": "rencana_strategis_its",
+    "score": 0.9831236600875854
+  },
+  {
+    "kind": "out",
+    "q": "Apa itu RENIP 2021 sampai 2030",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0008773382287472486
+  },
+  {
+    "kind": "in",
+    "q": "Apa motto ITS?",
+    "collection": "rencana_strategis_its",
+    "score": 0.9979146122932434
+  },
+  {
+    "kind": "out",
+    "q": "Apa motto ITS?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0027066522743552923
+  },
+  {
+    "kind": "in",
+    "q": "Bagaimana RENSTRA ITS 2026–2030 mendukung kemandirian finansial ITS?",
+    "collection": "rencana_strategis_its",
+    "score": 0.9986746311187744
+  },
+  {
+    "kind": "out",
+    "q": "Bagaimana RENSTRA ITS 2026–2030 mendukung kemandirian finansial ITS?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.002409722190350294
+  },
+  {
+    "kind": "in",
+    "q": "Kode mata kuliah struktur data?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9953325390815735
+  },
+  {
+    "kind": "out",
+    "q": "Kode mata kuliah struktur data?",
+    "collection": "rencana_strategis_its",
+    "score": 0.005920670460909605
+  },
+  {
+    "kind": "in",
+    "q": "Siapa dosen pengaampu mata kuliah data structure?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9794909358024597
+  },
+  {
+    "kind": "out",
+    "q": "Siapa dosen pengaampu mata kuliah data structure?",
+    "collection": "rencana_strategis_its",
+    "score": 0.0028997419867664576
+  },
+  {
+    "kind": "in",
+    "q": "Siapa dosen pengampu mata kuliah Data Structure?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9901543259620667
+  },
+  {
+    "kind": "out",
+    "q": "Siapa dosen pengampu mata kuliah Data Structure?",
+    "collection": "rencana_strategis_its",
+    "score": 0.007429205346852541
+  },
+  {
+    "kind": "in",
+    "q": "Siapa dosen pengajar mata kuliah Data Structure?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9824736714363098
+  },
+  {
+    "kind": "out",
+    "q": "Siapa dosen pengajar mata kuliah Data Structure?",
+    "collection": "rencana_strategis_its",
+    "score": 0.0027470486238598824
+  },
+  {
+    "kind": "in",
+    "q": "Siapa dosen pengajar mata kuliah Struktur Basis Data ?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.4179019629955292
+  },
+  {
+    "kind": "out",
+    "q": "Siapa dosen pengajar mata kuliah Struktur Basis Data ?",
+    "collection": "rencana_strategis_its",
+    "score": 0.002369549125432968
+  },
+  {
+    "kind": "in",
+    "q": "Dosen pengampu mata kuliah sistem operasi?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9923750758171082
+  },
+  {
+    "kind": "out",
+    "q": "Dosen pengampu mata kuliah sistem operasi?",
+    "collection": "rencana_strategis_its",
+    "score": 0.005943192634731531
+  },
+  {
+    "kind": "in",
+    "q": "Materi pembelajaran struktur data?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.982221782207489
+  },
+  {
+    "kind": "out",
+    "q": "Materi pembelajaran struktur data?",
+    "collection": "rencana_strategis_its",
+    "score": 0.0029994649812579155
+  },
+  {
+    "kind": "in",
+    "q": "Mata kuliah sturkut data semester berapa ya?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.6356703042984009
+  },
+  {
+    "kind": "out",
+    "q": "Mata kuliah sturkut data semester berapa ya?",
+    "collection": "rencana_strategis_its",
+    "score": 0.0027376555372029543
+  },
+  {
+    "kind": "in",
+    "q": "Berapa SKS dari mata kuliah sturktur data?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.896037220954895
+  },
+  {
+    "kind": "out",
+    "q": "Berapa SKS dari mata kuliah sturktur data?",
+    "collection": "rencana_strategis_its",
+    "score": 0.005808697082102299
+  },
+  {
+    "kind": "in",
+    "q": "Beban mata kuliah Struktur data",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9782640337944031
+  },
+  {
+    "kind": "out",
+    "q": "Beban mata kuliah Struktur data",
+    "collection": "rencana_strategis_its",
+    "score": 0.038516733795404434
+  },
+  {
+    "kind": "in",
+    "q": "Apa itu Renstra ITS?",
+    "collection": "rencana_strategis_its",
+    "score": 0.994392454624176
+  },
+  {
+    "kind": "out",
+    "q": "Apa itu Renstra ITS?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.00039549884968437254
+  },
+  {
+    "kind": "in",
+    "q": "Apa motto ITS?",
+    "collection": "rencana_strategis_its",
+    "score": 0.9979146122932434
+  },
+  {
+    "kind": "out",
+    "q": "Apa motto ITS?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.0027066522743552923
+  },
+  {
+    "kind": "in",
+    "q": "Siapa dosen pengampu mata kuliah Data Structure?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9901543259620667
+  },
+  {
+    "kind": "out",
+    "q": "Siapa dosen pengampu mata kuliah Data Structure?",
+    "collection": "rencana_strategis_its",
+    "score": 0.007429205346852541
+  },
+  {
+    "kind": "in",
+    "q": "Siapa dosen pengampu mata kuliah Sistem Operasi",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9933606386184692
+  },
+  {
+    "kind": "out",
+    "q": "Siapa dosen pengampu mata kuliah Sistem Operasi",
+    "collection": "rencana_strategis_its",
+    "score": 0.003339946735650301
+  },
+  {
+    "kind": "in",
+    "q": "Siapa dosen pengampu mata kuliah Data Structure?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9901543259620667
+  },
+  {
+    "kind": "out",
+    "q": "Siapa dosen pengampu mata kuliah Data Structure?",
+    "collection": "rencana_strategis_its",
+    "score": 0.0019458392634987831
+  },
+  {
+    "kind": "in",
+    "q": "Siapa dosen pengajar mata kuliah Sistem Operasi?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9731765985488892
+  },
+  {
+    "kind": "out",
+    "q": "Siapa dosen pengajar mata kuliah Sistem Operasi?",
+    "collection": "rencana_strategis_its",
+    "score": 0.0027430476620793343
+  },
+  {
+    "kind": "in",
+    "q": "Selain itu siaapa lagi ya?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.006836142390966415
+  },
+  {
+    "kind": "out",
+    "q": "Selain itu siaapa lagi ya?",
+    "collection": "rencana_strategis_its",
+    "score": 0.05535797402262688
+  },
+  {
+    "kind": "in",
+    "q": "Kode mata kuliah Sistem Operasi?",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9925189018249512
+  },
+  {
+    "kind": "out",
+    "q": "Kode mata kuliah Sistem Operasi?",
+    "collection": "rencana_strategis_its",
+    "score": 0.004943410400301218
+  },
+  {
+    "kind": "in",
+    "q": "Kode Mata Kuliah Struktur Data",
+    "collection": "kurikulum_dan_silabus_s1_-_informatika",
+    "score": 0.9965875148773193
+  },
+  {
+    "kind": "out",
+    "q": "Kode Mata Kuliah Struktur Data",
+    "collection": "rencana_strategis_its",
+    "score": 0.003484665881842375
+  }
+]

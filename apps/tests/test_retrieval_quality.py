@@ -232,6 +232,16 @@ class MultiQueryRerankTests(unittest.TestCase):
 
 
 class AugmentationDefaultTests(unittest.TestCase):
+    def setUp(self):
+        from app.core.config import settings
+
+        # These stubs retrieve nothing, which the scope gate rightly reads as
+        # an empty collection and stops on. What is under test here is which
+        # setting decides the rewrite, so the gate stands aside.
+        patcher = unittest.mock.patch.object(settings, "SCOPE_GATE_ENABLED", False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def service(self):
         from app.services.retrieval_service import RetrievalService
 
@@ -245,7 +255,9 @@ class AugmentationDefaultTests(unittest.TestCase):
         return RetrievalService(collections, qdrant, augmenter, None, embedding), augmenter
 
     def payload(self):
-        return Mock(collection_id=uuid4(), question_text="q")
+        # A real question: a one-character stub is rejected before retrieval,
+        # which would pass these tests without ever reaching the rewrite.
+        return Mock(collection_id=uuid4(), question_text="Apa syarat pendaftaran?")
 
     def test_an_unset_request_follows_the_setting(self):
         from app.core.config import settings

@@ -18,9 +18,14 @@ from app.repositories import CollectionsRepository
 from app.repositories.questions_repository import QuestionsRepository
 from app.schema.question_schema import CreateQuestion
 from app.services.base_service import BaseService
+from app.services.conversation_context import HISTORY_QUESTIONS
 from app.services.retrieval_service import RetrievalService
 from rag.qdrant.client import QdrantHttpClient
-from rag.llm.chat_model import OpenAIChat
+from rag.llm.chat_model import LLM_HISTORY_TURNS, OpenAIChat
+
+# Turns read back per question: enough for both the prompt and the follow-up
+# query, whichever asks for more.
+HISTORY_TURNS = max(LLM_HISTORY_TURNS, HISTORY_QUESTIONS)
 
 # How often the streaming turn looks for progress from the retrieval thread.
 STAGE_POLL_SECONDS = 0.05
@@ -75,9 +80,29 @@ class QuestionsService(BaseService):
         return OpenAIChat(key="any")
 
     def _before_question(
-        self, payload: CreateQuestion, using_augment_query=False, on_stage=None
+        self,
+        payload: CreateQuestion,
+        using_augment_query=False,
+        on_stage=None,
+        history=None,
     ):
-        return self.retrieval_service.retrieve(payload, using_augment_query, on_stage)
+        return self.retrieval_service.retrieve(
+            payload, using_augment_query, on_stage, history
+        )
+
+    def conversation_history(
+        self, payload: CreateQuestion, user: Users | None
+    ) -> list[tuple[str, str]]:
+        """Earlier turns of this conversation, or none for a one-off question.
+
+        A guest sends no conversation_id, so their follow-ups are answered
+        without context: their history lives only in their browser.
+        """
+        if payload.conversation_id is None or user is None:
+            return []
+        return self.conversations_repository.recent_turns(
+            payload.conversation_id, user.id, HISTORY_TURNS
+        )
 
     def start_turn(self, payload: CreateQuestion, user: Users | None) -> UUID | None:
         if payload.conversation_id is None:
@@ -108,9 +133,14 @@ class QuestionsService(BaseService):
             return question
         return self.question_repository.create(question)
 
-    def question_no_stream(self, payload: CreateQuestion, turn_id: UUID | None = None):
+    def question_no_stream(
+        self,
+        payload: CreateQuestion,
+        turn_id: UUID | None = None,
+        history: list[tuple[str, str]] | None = None,
+    ):
         try:
-            return self._question_no_stream(payload, turn_id)
+            return self._question_no_stream(payload, turn_id, history or [])
         except Exception:
             if turn_id is not None:
                 self.conversations_repository.finish_turn(
@@ -118,18 +148,25 @@ class QuestionsService(BaseService):
                 )
             raise
 
-    def _question_no_stream(self, payload: CreateQuestion, turn_id: UUID | None):
+    def _question_no_stream(
+        self,
+        payload: CreateQuestion,
+        turn_id: UUID | None,
+        history: list[tuple[str, str]],
+    ):
         stages: list[str] = []
         re_ranked_pairs = self._before_question(
             payload,
             payload.using_augment_query,
             lambda stage, **detail: stages.append(stage),
+            history,
         )
 
         response = (
             self.openai_chat.chat(
                 question=payload.question_text,
                 context_pairs=re_ranked_pairs,
+                history=history,
             )
             if re_ranked_pairs
             else self._empty_answer(stages)
@@ -143,7 +180,9 @@ class QuestionsService(BaseService):
             response += footer
         return self._save_answer(payload, response, turn_id, sources)
 
-    async def _retrieve_with_stages(self, payload: CreateQuestion):
+    async def _retrieve_with_stages(
+        self, payload: CreateQuestion, history: list[tuple[str, str]]
+    ):
         """Report retrieval progress while the blocking pipeline runs in a thread.
 
         Yields ``("stage", event)`` as each step starts and finally
@@ -157,6 +196,7 @@ class QuestionsService(BaseService):
                 payload,
                 payload.using_augment_query,
                 lambda stage, **detail: stages.put({"stage": stage, "detail": detail}),
+                history,
             )
         )
         try:
@@ -190,7 +230,10 @@ class QuestionsService(BaseService):
         }
 
     async def question_stream(
-        self, payload: CreateQuestion, turn_id: UUID | None = None
+        self,
+        payload: CreateQuestion,
+        turn_id: UUID | None = None,
+        history: list[tuple[str, str]] | None = None,
     ):
         """
         Stream the question and answer pairs.
@@ -201,7 +244,7 @@ class QuestionsService(BaseService):
         try:
             re_ranked_pairs = []
             stages: list[str] = []
-            async for kind, item in self._retrieve_with_stages(payload):
+            async for kind, item in self._retrieve_with_stages(payload, history or []):
                 if kind == "stage":
                     stages.append(item.get("stage", ""))
                     yield {
@@ -215,6 +258,7 @@ class QuestionsService(BaseService):
                 async for chunk in self.openai_chat.chat_with_stream(
                     question=payload.question_text,
                     context_pairs=re_ranked_pairs,
+                    history=history or [],
                 ):
                     if chunk:
                         accumulated_answer += chunk

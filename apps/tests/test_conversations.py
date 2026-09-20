@@ -271,7 +271,11 @@ class HistoryGenerationTests(HistoryFixture):
         events = asyncio.run(consume())
         saved = self.detail()["turns"][0]
         self.assertIn("Source: document.pdf", saved["answer"])
-        self.assertEqual([item for item in events if "event" in item], [])
+        # Progress events are expected; citation metadata is what must be absent
+        # when the answer already carries a rendered source list.
+        self.assertEqual(
+            [item for item in events if item.get("event") == "sources"], []
+        )
 
     def test_model_failure_keeps_partial_answer(self):
         async def failing(**_):
@@ -296,7 +300,11 @@ class HistoryGenerationTests(HistoryFixture):
 
         async def disconnect():
             generator = self.service.question_stream(self.payload, turn)
-            await anext(generator)
+            async for item in generator:
+                # Retrieval progress precedes the answer; drop the connection
+                # once the first of the answer has actually arrived.
+                if "event" not in item:
+                    break
             await generator.aclose()
 
         asyncio.run(disconnect())

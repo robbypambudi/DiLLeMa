@@ -107,7 +107,7 @@ class QuestionIntegrationTests(unittest.TestCase):
         self.questions.create.side_effect = lambda question: question
         self.collection = Mock()
         self.collection.read_by_id.return_value = SimpleNamespace(
-            vectordb_collection_name="pilot"
+            vectordb_collection_name="pilot", collection_name="pilot"
         )
         self.vectors = Mock()
         self.vectors.search.return_value = [
@@ -125,6 +125,8 @@ class QuestionIntegrationTests(unittest.TestCase):
         self.embedding = Mock()
         self.embedding.encode.return_value = SimpleNamespace(tolist=lambda: [0.1])
         self.reranker = Mock()
+        # Above the scope gate: these tests are about what generation receives.
+        self.reranker.best_score.return_value = 0.9
         self.reranker.rank.side_effect = (
             lambda pairs, top_results, min_score=None: pairs[:top_results]
         )
@@ -159,7 +161,11 @@ class QuestionIntegrationTests(unittest.TestCase):
         async def collect():
             text = []
             async for item in self.service.question_stream(self.payload):
-                (cited if item.get("event") == "sources" else text).append(item["data"])
+                if item.get("event") == "sources":
+                    cited.append(item["data"])
+                elif "event" not in item:
+                    # Progress events are not the answer, as the client reads it.
+                    text.append(item["data"])
             return "".join(text)
 
         with patch.object(settings, "KG_ENABLED", False):
@@ -210,7 +216,9 @@ class QuestionIntegrationTests(unittest.TestCase):
         with patch.object(settings, "KG_ENABLED", False):
             result = self.service.question_no_stream(self.payload)
         self.chat.chat.assert_not_called()
-        self.assertIn("tidak memiliki informasi", result.answer)
+        # Retrieving nothing at all is the empty-collection case, which the
+        # scope gate names before the reranker is ever consulted.
+        self.assertIn("di luar cakupan", result.answer)
 
     def test_source_markup_is_escaped(self):
         from rag.llm.chat_model import OpenAIChat

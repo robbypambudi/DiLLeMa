@@ -9,6 +9,10 @@ const STAGES: Record<string, { running: (detail: StageDetail) => string; done: (
     running: () => 'Rephrasing your question',
     done: () => 'Rephrased your question',
   },
+  following_up: {
+    running: () => 'Reading this as a follow-up',
+    done: () => 'Read this as a follow-up',
+  },
   searching: {
     running: (detail) => `Searching ${detail.collection ?? 'your documents'}`,
     done: (detail) => `Searched ${detail.collection ?? 'your documents'}${count(detail.queries) > 1 ? ` with ${detail.queries} phrasings` : ''}`,

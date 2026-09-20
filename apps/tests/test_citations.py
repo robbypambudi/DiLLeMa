@@ -219,7 +219,7 @@ class RelevanceFloorTests(unittest.TestCase):
         reranker.model.predict.return_value = [score]
         collections = Mock()
         collections.read_by_id.return_value = SimpleNamespace(
-            vectordb_collection_name="pilot"
+            vectordb_collection_name="pilot", collection_name="pilot"
         )
         vectors = Mock()
         vectors.search.return_value = [
@@ -246,12 +246,21 @@ class RelevanceFloorTests(unittest.TestCase):
 
     def test_evidence_below_the_floor_is_not_answered_from(self):
         service, payload = self.build(0.01)
-        with patch("app.services.retrieval_service.settings.RERANK_MIN_SCORE", 0.05):
+        # The scope gate is off: this asserts on the rerank floor, and a gate
+        # that rejected the question first would pass the test for the wrong
+        # reason.
+        with (
+            patch("app.services.retrieval_service.settings.RERANK_MIN_SCORE", 0.05),
+            patch("app.services.retrieval_service.settings.SCOPE_GATE_ENABLED", False),
+        ):
             self.assertEqual(service.retrieve(payload), [])
 
     def test_relevant_evidence_still_passes(self):
         service, payload = self.build(0.8)
-        with patch("app.services.retrieval_service.settings.RERANK_MIN_SCORE", 0.05):
+        with (
+            patch("app.services.retrieval_service.settings.RERANK_MIN_SCORE", 0.05),
+            patch("app.services.retrieval_service.settings.SCOPE_GATE_ENABLED", False),
+        ):
             self.assertEqual(len(service.retrieve(payload)), 1)
 
 

@@ -9,6 +9,7 @@ from loguru import logger
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.schema.question_schema import CreateQuestion
+from app.services.conversation_context import contextual_query
 from app.services.scope_gate import trivial_reason
 from rag.evidence import source_key
 
@@ -161,6 +162,7 @@ class RetrievalService:
         knowledge_repository=None,
         embedding_model=None,
         re_ranking=None,
+        standalone_question=None,
     ):
         self.collections_repository = collections_repository
         self.qdrant_client = qdrant_client
@@ -170,6 +172,14 @@ class RetrievalService:
             self.embedding_model = embedding_model
         if re_ranking is not None:
             self.re_ranking = re_ranking
+        if standalone_question is not None:
+            self.standalone_question = standalone_question
+
+    @cached_property
+    def standalone_question(self):
+        from agents.standalone_question import StandaloneQuestion
+
+        return StandaloneQuestion()
 
     @cached_property
     def embedding_model(self):
@@ -185,7 +195,13 @@ class RetrievalService:
         return ReRanking()
 
     def _search_into(self, candidates, seed_file_ids, collection, payload, query):
-        """Add one query's hits to the shared candidate pool, deduplicated."""
+        """Add one query's hits to the shared pool and return that query's own.
+
+        The pool is shared and deduplicated, but a probe has to judge the hits
+        of the query it is probing, not whatever an earlier query put in front
+        of them -- so this query's results come back in their own order.
+        """
+        found = []
         query_embedding = self.embedding_model.encode(query)
         if hasattr(query_embedding, "ndim") and query_embedding.ndim > 1:
             query_embedding = query_embedding[0]
@@ -201,59 +217,131 @@ class RetrievalService:
             text = metadata.get("document", "")
             if not text:
                 continue
-            candidates.setdefault(str(hit.id), [payload.question_text, text, metadata])
+            pair = candidates.setdefault(
+                str(hit.id), [payload.question_text, text, metadata]
+            )
+            found.append(pair)
             try:
                 seed_file_ids.add(UUID(str(metadata.get("file_id"))))
             except (ValueError, TypeError):
                 pass
+        return found
 
-    def _in_scope(self, question: str, candidates: dict, report) -> bool:
-        """Decide on evidence whether the corpus covers the question at all.
+    def _probe(self, pairs: list, query: str) -> float | None:
+        """Best cross-encoder score over the head of `pairs`, or None if unusable.
 
-        Only the first `SCOPE_PROBE_CANDIDATES` hits are scored, against a
-        floor below `RERANK_MIN_SCORE`: the probe must never reject what the
-        full pipeline would have answered, so it settles the clear cases and
-        leaves the borderline ones to the rerank that follows.
-
-        Hits arrive in hybrid-fusion order, whose scores rank documents but do
-        not measure relevance -- hence the cross-encoder, on a pool small
-        enough that the saving is real.
+        Only `SCOPE_PROBE_CANDIDATES` hits are scored: the full rerank scores
+        RETRIEVAL_CANDIDATES per query, so this stays a rounding error beside it.
+        Hybrid hits arrive in fusion order, whose scores rank documents but do
+        not measure relevance -- hence the cross-encoder rather than `hit.score`.
         """
-        probe = list(candidates.values())[: settings.SCOPE_PROBE_CANDIDATES]
+        probe = pairs[: settings.SCOPE_PROBE_CANDIDATES]
         if not probe:
-            report("out_of_scope", reason="empty_collection")
-            return False
-        report("checking", passages=len(probe))
+            return None
         try:
-            best = self.re_ranking.best_score(probe, question)
+            return float(self.re_ranking.best_score(probe, query))
         except Exception as exc:
-            # A probe that cannot run must not cost the user their answer.
+            # A probe that cannot run -- or cannot be read as a score -- must
+            # not cost the user their answer. The rerank floor still applies.
             logger.warning(
                 "Scope probe unavailable; continuing with full retrieval ({})",
                 type(exc).__name__,
             )
-            return True
-        if best >= settings.SCOPE_GATE_MIN_SCORE:
-            return True
-        report("out_of_scope", reason="no_relevant_passage")
+            return None
+
+    def _resolve_query(
+        self, payload, collection, candidates, seed_file_ids, history, report
+    ) -> str | None:
+        """What to search with, or None when nothing should be searched at all.
+
+        Three outcomes, decided on evidence rather than on the shape of the
+        sentence, because no lexical rule separates "kalau untuk S2 bagaimana?"
+        (a follow-up) from "kalau jadwal kuliahnya?" (a new topic):
+
+        * the question already retrieves well -> search it as it stands, and
+          keep the conversation out of it;
+        * it retrieves nothing alone but retrieves well once the topic is
+          restored -> a real follow-up, worth rewriting into a standalone
+          question;
+        * neither -> the collection does not cover it.
+
+        The bare question is probed first for a reason: a carried topic scores
+        high for a genuine follow-up *and* for a topic switch, so that score
+        cannot tell them apart. Only the bare score reveals that the question
+        stands on its own.
+        """
+        question = payload.question_text
+
+        def reject(reason):
+            # SCOPE_GATE_ENABLED turns off rejection, not the decision: the
+            # question still has to be resolved before it can be searched.
+            if not settings.SCOPE_GATE_ENABLED:
+                return question
+            report("out_of_scope", reason=reason)
+            return None
+
+        report("searching", queries=1, collection=collection.collection_name)
+        bare_pairs = self._search_into(
+            candidates, seed_file_ids, collection, payload, question
+        )
+        if not bare_pairs and not candidates:
+            return reject("empty_collection")
+
+        report("checking", passages=min(len(bare_pairs), settings.SCOPE_PROBE_CANDIDATES))
+        alone = self._probe(bare_pairs, question)
+        if alone is None or alone >= settings.SCOPE_SELF_SUFFICIENT_SCORE:
+            # Unprobeable questions continue: the gate is an optimisation.
+            return question
+
+        if history:
+            carried = contextual_query(question, history)
+            if carried != question:
+                report("following_up")
+                carried_pairs = self._search_into(
+                    candidates, seed_file_ids, collection, payload, carried
+                )
+                with_topic = self._probe(carried_pairs, carried)
+                if (
+                    with_topic is not None
+                    and with_topic >= settings.SCOPE_FOLLOWUP_MIN_SCORE
+                ):
+                    return self._standalone(question, carried, history)
+
+        # Not self-sufficient and not a follow-up: fall back to the plain gate,
+        # which must never reject what it would have allowed before.
+        if alone >= settings.SCOPE_GATE_MIN_SCORE:
+            return question
         logger.info(
             "Question rejected by scope probe (best {:.4f} < {})",
-            best,
+            alone,
             settings.SCOPE_GATE_MIN_SCORE,
         )
-        return False
+        return reject("no_relevant_passage")
+
+    def _standalone(self, question: str, carried: str, history: list) -> str:
+        """The follow-up as one self-contained question.
+
+        The carried string is the fallback, not the goal: it searches well only
+        while the topic holds, which is exactly what a rewrite makes explicit.
+        """
+        if not settings.FOLLOWUP_REWRITE:
+            return carried
+        rewritten = self.standalone_question.rewrite(question, history)
+        return rewritten or carried
 
     def retrieve(
         self,
         payload: CreateQuestion,
         using_augment_query: bool | None = False,
         on_stage=None,
+        history: list[tuple[str, str]] | None = None,
     ):
         """Hybrid leaf retrieval, then parent-page packing for generation.
 
         `using_augment_query=None` defers to the `QUERY_AUGMENTATION` setting.
         `on_stage(stage, **counts)` reports progress while the work runs; it
         carries counts only, never document text or the question itself.
+        `history` lets a follow-up be searched with the topic it omitted.
         """
         report = on_stage or _ignore_stage
         collection = self.collections_repository.read_by_id(payload.collection_id)
@@ -274,24 +362,25 @@ class RetrievalService:
 
         candidates = {}
         seed_file_ids = set()
-        # The question alone goes first. Its hits are what the scope probe
-        # judges, and they stay in the pool, so a question that passes has
-        # paid for one search it would have run anyway.
-        report("searching", queries=1, collection=collection.collection_name)
-        self._search_into(
-            candidates, seed_file_ids, collection, payload, payload.question_text
+        search_query = self._resolve_query(
+            payload, collection, candidates, seed_file_ids, history or [], report
         )
-
-        if settings.SCOPE_GATE_ENABLED and not self._in_scope(
-            payload.question_text, candidates, report
-        ):
+        if search_query is None:
             return []
+        rewritten = search_query != payload.question_text
 
-        queries = [payload.question_text]
-        if using_augment_query:
+        queries = [search_query]
+        if rewritten:
+            # The rewrite already states the question the way the corpus is
+            # written; a second LLM call to paraphrase it buys little, and the
+            # promise was at most one rewrite call per question.
+            self._search_into(
+                candidates, seed_file_ids, collection, payload, search_query
+            )
+        elif using_augment_query:
             report("augmenting")
-            queries = self.augment_query_generator.augment(payload.question_text)
-            extra = [query for query in queries if query != payload.question_text]
+            queries = self.augment_query_generator.augment(search_query)
+            extra = [query for query in queries if query != search_query]
             if extra:
                 report(
                     "searching",
@@ -338,7 +427,13 @@ class RetrievalService:
         # The question and its translation: keyword rewrites widen the search,
         # but scoring every candidate against every rewrite multiplies the
         # cross-encoder's work for little gain.
-        rerank_options = {"queries": queries[:2]} if len(queries) > 1 else {}
+        # At most two, and never the carried string: scoring a passage
+        # against "<old question> <new question>" is what lets a stale document
+        # outrank the one that answers the question actually asked.
+        variants = list(dict.fromkeys([search_query, *queries, payload.question_text]))[
+            :2
+        ]
+        rerank_options = {"queries": variants} if len(variants) > 1 else {}
         report("ranking", candidates=len(pairs), graph=int(graph_used))
         ranked = self.re_ranking.rank(
             pairs=pairs,
