@@ -1,7 +1,7 @@
 import { apiFetch, apiRequest, readError } from '@/shared/api/client'
 import { readSseStream } from '@/shared/api/sse'
 import type { ApiResponse } from '@/shared/api/types'
-import type { ConversationResponse, ConversationSummary, SourceRef } from './types'
+import type { ConversationResponse, ConversationSummary, SourceRef, StageDetail } from './types'
 
 export interface AnswerDelta {
   kind: 'text'
@@ -13,8 +13,23 @@ export interface AnswerSources {
   sources: SourceRef[]
 }
 
-/** Citation metadata travels on its own SSE event so it never lands in the answer. */
-function toAnswerEvent(event: { event: string; data: string }): AnswerDelta | AnswerSources | null {
+export interface AnswerStatus {
+  kind: 'status'
+  stage: string
+  detail?: StageDetail
+}
+
+/** Citation metadata and progress travel on their own SSE events so neither lands in the answer. */
+function toAnswerEvent(event: { event: string; data: string }): AnswerDelta | AnswerSources | AnswerStatus | null {
+  if (event.event === 'status') {
+    try {
+      const parsed = JSON.parse(event.data) as { stage?: unknown; detail?: StageDetail }
+      return typeof parsed.stage === 'string' ? { kind: 'status', stage: parsed.stage, detail: parsed.detail } : null
+    } catch {
+      // A malformed progress event costs one line of the trace, not the answer.
+      return null
+    }
+  }
   if (event.event !== 'sources') return { kind: 'text', text: event.data }
   try {
     const parsed = JSON.parse(event.data)
@@ -25,7 +40,7 @@ function toAnswerEvent(event: { event: string; data: string }): AnswerDelta | An
   }
 }
 
-export async function* streamAnswer(collectionId: string, question: string, signal: AbortSignal, conversationId?: string): AsyncGenerator<AnswerDelta | AnswerSources> {
+export async function* streamAnswer(collectionId: string, question: string, signal: AbortSignal, conversationId?: string): AsyncGenerator<AnswerDelta | AnswerSources | AnswerStatus> {
   const body = new URLSearchParams({
     question_id: `user_${Date.now()}_${Math.random().toString(36).slice(2)}`,
     question_text: question,

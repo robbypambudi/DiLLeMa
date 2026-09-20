@@ -1,4 +1,6 @@
+import asyncio
 import json
+import queue
 from functools import cached_property
 from uuid import UUID
 
@@ -19,6 +21,9 @@ from app.services.base_service import BaseService
 from app.services.retrieval_service import RetrievalService
 from rag.qdrant.client import QdrantHttpClient
 from rag.llm.chat_model import OpenAIChat
+
+# How often the streaming turn looks for progress from the retrieval thread.
+STAGE_POLL_SECONDS = 0.05
 
 
 class QuestionsService(BaseService):
@@ -59,8 +64,10 @@ class QuestionsService(BaseService):
 
         return OpenAIChat(key="any")
 
-    def _before_question(self, payload: CreateQuestion, using_augment_query=False):
-        return self.retrieval_service.retrieve(payload, using_augment_query)
+    def _before_question(
+        self, payload: CreateQuestion, using_augment_query=False, on_stage=None
+    ):
+        return self.retrieval_service.retrieve(payload, using_augment_query, on_stage)
 
     def start_turn(self, payload: CreateQuestion, user: Users | None) -> UUID | None:
         if payload.conversation_id is None:
@@ -123,6 +130,47 @@ class QuestionsService(BaseService):
             response += footer
         return self._save_answer(payload, response, turn_id, sources)
 
+    async def _retrieve_with_stages(self, payload: CreateQuestion):
+        """Report retrieval progress while the blocking pipeline runs in a thread.
+
+        Yields ``("stage", event)`` as each step starts and finally
+        ``("evidence", pairs)``. The thread cannot reach the event loop, so
+        stages travel through a queue the turn drains between polls.
+        """
+        stages: queue.SimpleQueue = queue.SimpleQueue()
+        task = asyncio.ensure_future(
+            run_in_threadpool(
+                self._before_question,
+                payload,
+                payload.using_augment_query,
+                lambda stage, **detail: stages.put({"stage": stage, "detail": detail}),
+            )
+        )
+        try:
+            while True:
+                await asyncio.wait({task}, timeout=STAGE_POLL_SECONDS)
+                while True:
+                    try:
+                        yield "stage", stages.get_nowait()
+                    except queue.Empty:
+                        break
+                if task.done():
+                    break
+        finally:
+            # A disconnected client stops the turn; the worker thread finishes
+            # on its own, but nothing should await its result any more.
+            if not task.done():
+                task.cancel()
+        yield "evidence", task.result()
+
+    @staticmethod
+    def _stage_event(stage: str, **detail):
+        """A named SSE event, so progress never lands in the answer text."""
+        return {
+            "event": "status",
+            "data": json.dumps({"stage": stage, "detail": detail}),
+        }
+
     async def question_stream(
         self, payload: CreateQuestion, turn_id: UUID | None = None
     ):
@@ -133,12 +181,17 @@ class QuestionsService(BaseService):
         sources: list = []
         status = "interrupted"
         try:
-            re_ranked_pairs = await run_in_threadpool(
-                self._before_question,
-                payload,
-                using_augment_query=payload.using_augment_query,
-            )
+            re_ranked_pairs = []
+            async for kind, item in self._retrieve_with_stages(payload):
+                if kind == "stage":
+                    yield {
+                        "event": "status",
+                        "data": json.dumps(item, ensure_ascii=False),
+                    }
+                else:
+                    re_ranked_pairs = item
             if re_ranked_pairs:
+                yield self._stage_event("generating", documents=len(re_ranked_pairs))
                 async for chunk in self.openai_chat.chat_with_stream(
                     question=payload.question_text,
                     context_pairs=re_ranked_pairs,

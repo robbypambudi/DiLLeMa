@@ -20,11 +20,26 @@ export interface SourceRef {
   snippets: SourceSnippet[]
 }
 
+/** Counts the server reports with a stage; never document text or the question. */
+export type StageDetail = Record<string, string | number>
+
+/** One step of the retrieval pipeline, as the answer was being prepared. */
+export interface ThinkingStep {
+  stage: string
+  detail?: StageDetail
+  /** When the client saw it, for the elapsed time shown after the answer. */
+  at: number
+}
+
 export interface Message {
   role: 'user' | 'assistant'
   content: string
   status?: 'pending' | 'completed' | 'failed' | 'interrupted'
   sources?: SourceRef[]
+  /** Live only for the turn this tab streamed; reloaded history has none. */
+  steps?: ThinkingStep[]
+  /** Milliseconds from the question to the first token of the answer. */
+  thinkingMs?: number
 }
 
 export interface ChatState {

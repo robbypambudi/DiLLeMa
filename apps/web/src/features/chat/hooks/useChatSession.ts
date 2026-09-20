@@ -4,7 +4,7 @@ import { errorMessage } from '@/shared/lib/errors'
 import { conversationsApi, streamAnswer } from '../api'
 import { conversationCollection, conversationTitle, fromResponse } from '../lib/history'
 import { readActiveConversation, readGuestHistory, writeActiveConversation, writeGuestHistory } from '../lib/historyStorage'
-import type { ChatState, Conversation, ConversationSummary, Message, SourceRef } from '../types'
+import type { ChatState, Conversation, ConversationSummary, Message, SourceRef, ThinkingStep } from '../types'
 
 const initialState: ChatState = {
   selectedCollection: null, conversationId: null, messages: [],
@@ -162,9 +162,12 @@ export function useChatSession(userId: string | null, ready: boolean) {
     let guestConversation: Conversation | undefined
     let answer = ''
     let sources: SourceRef[] = []
+    let steps: ThinkingStep[] = []
+    let thinkingMs: number | undefined
+    const askedAt = Date.now()
     const showAnswer = (status: NonNullable<Message['status']>) => {
       if (!mounted.current) return
-      const nextMessages: Message[] = [...messages, { role: 'assistant', content: answer, status, sources }]
+      const nextMessages: Message[] = [...messages, { role: 'assistant', content: answer, status, sources, steps, thinkingMs }]
       patchState({ messages: nextMessages })
       if (guestConversation) saveGuest({ ...guestConversation, messages: nextMessages, updated_at: new Date().toISOString() })
     }
@@ -188,7 +191,12 @@ export function useChatSession(userId: string | null, ready: boolean) {
       showAnswer('pending')
       for await (const event of streamAnswer(current.selectedCollection.id, question, controller.signal, userId ? conversationId! : undefined)) {
         if (event.kind === 'sources') sources = event.sources
-        else answer += event.text
+        else if (event.kind === 'status') steps = [...steps, { stage: event.stage, detail: event.detail, at: Date.now() }]
+        else {
+          // Thinking ends where the answer begins, not where the stream does.
+          if (!answer) thinkingMs = Date.now() - askedAt
+          answer += event.text
+        }
         showAnswer('pending')
       }
       answer ||= 'No response received.'
@@ -196,7 +204,11 @@ export function useChatSession(userId: string | null, ready: boolean) {
       if (userId) {
         try {
           const saved = fromResponse((await conversationsApi.get(conversationId!, controller.signal)).data)
-          if (mounted.current && !controller.signal.aborted) patchState({ messages: saved.messages })
+          // The server never stores the trace, so carry this turn's own back onto it.
+          const restored = saved.messages.map((message, index) =>
+            index === saved.messages.length - 1 && message.role === 'assistant' ? { ...message, steps, thinkingMs } : message
+          )
+          if (mounted.current && !controller.signal.aborted) patchState({ messages: restored })
         } catch (error) {
           if (mounted.current && !controller.signal.aborted) setHistoryError(`Could not verify the saved answer: ${errorMessage(error)}`)
         }

@@ -5,6 +5,7 @@ import { cn } from '@/shared/lib/utils'
 import { copyToClipboard, downloadChatHtml } from '../lib/exportChat'
 import { formatPages } from '../lib/sources'
 import { HtmlRenderer } from './HtmlRenderer'
+import { ThinkingTrace } from './ThinkingTrace'
 import { Button } from '@/shared/components/ui/Button'
 
 import { BookOpen, Copy, FileDown, FileText, MessageSquare } from 'lucide-react'
@@ -60,6 +61,7 @@ export function ChatWindow({ onOpenSource, activeSource }: ChatWindowProps) {
               {message.role === 'assistant' ? (
                 message.content ? (
                   <div>
+                    <ThinkingTrace steps={message.steps} active={false} thinkingMs={message.thinkingMs} />
                     <HtmlRenderer
                       content={message.content}
                       sources={message.sources}
@@ -72,14 +74,7 @@ export function ChatWindow({ onOpenSource, activeSource }: ChatWindowProps) {
                 ) : message.status === 'interrupted' || message.status === 'failed' ? (
                   <p className="text-muted-foreground">{message.status === 'failed' ? 'The answer could not be generated.' : 'The answer was interrupted.'}</p>
                 ) : (
-                  <div role="status" className="flex items-center space-x-2 text-muted-foreground">
-                    <div className="flex space-x-1">
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-current" />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-current" style={{ animationDelay: '0.1s' }} />
-                      <div className="h-2 w-2 animate-bounce rounded-full bg-current" style={{ animationDelay: '0.2s' }} />
-                    </div>
-                    <span>Assistant is typing...</span>
-                  </div>
+                  <ThinkingTrace steps={message.steps} active />
                 )
               ) : (
                 <div className="whitespace-pre-wrap">{message.content}</div>

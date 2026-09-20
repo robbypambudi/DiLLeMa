@@ -14,6 +14,10 @@ from rag.evidence import source_key
 MAX_PAGES_FOR_GENERATOR = 4
 
 
+def _ignore_stage(stage: str, **detail) -> None:
+    """Default progress sink for callers that do not report retrieval stages."""
+
+
 def _log_evidence_trace(payload, candidates, ranked, packed, reason):
     """Identifiers and scores only; never log document text or the question."""
     logger.info(
@@ -180,12 +184,18 @@ class RetrievalService:
         return ReRanking()
 
     def retrieve(
-        self, payload: CreateQuestion, using_augment_query: bool | None = False
+        self,
+        payload: CreateQuestion,
+        using_augment_query: bool | None = False,
+        on_stage=None,
     ):
         """Hybrid leaf retrieval, then parent-page packing for generation.
 
         `using_augment_query=None` defers to the `QUERY_AUGMENTATION` setting.
+        `on_stage(stage, **counts)` reports progress while the work runs; it
+        carries counts only, never document text or the question itself.
         """
+        report = on_stage or _ignore_stage
         collection = self.collections_repository.read_by_id(payload.collection_id)
         if not collection:
             raise NotFoundError(
@@ -195,10 +205,12 @@ class RetrievalService:
         if using_augment_query is None:
             using_augment_query = settings.QUERY_AUGMENTATION
         if using_augment_query:
+            report("augmenting")
             queries = self.augment_query_generator.augment(payload.question_text)
         else:
             queries = [payload.question_text]
 
+        report("searching", queries=len(queries), collection=collection.collection_name)
         candidates = {}
         seed_file_ids = set()
         for query in queries:
@@ -227,6 +239,7 @@ class RetrievalService:
 
         graph_used = False
         if settings.KG_ENABLED and self.knowledge_repository:
+            report("graph", candidates=len(candidates))
             try:
                 evidence = self.knowledge_repository.retrieve(
                     payload.collection_id,
@@ -256,11 +269,13 @@ class RetrievalService:
         pairs = list(candidates.values())
         if not pairs:
             _log_evidence_trace(payload, [], [], [], "no_candidates")
+            report("no_evidence", candidates=0)
             return []
         # The question and its translation: keyword rewrites widen the search,
         # but scoring every candidate against every rewrite multiplies the
         # cross-encoder's work for little gain.
         rerank_options = {"queries": queries[:2]} if len(queries) > 1 else {}
+        report("ranking", candidates=len(pairs), graph=int(graph_used))
         ranked = self.re_ranking.rank(
             pairs=pairs,
             top_results=12 if graph_used else 8,
@@ -269,12 +284,14 @@ class RetrievalService:
         )
         if not ranked:
             _log_evidence_trace(payload, pairs, [], [], "below_relevance_floor")
+            report("no_evidence", candidates=len(pairs))
             logger.info(
                 "No evidence cleared the relevance floor ({}) for collection {}",
                 settings.RERANK_MIN_SCORE,
                 payload.collection_id,
             )
             return []
+        report("reading", passages=len(ranked))
         packed = pack_parent_pages(
             drop_weak_evidence(ranked, settings.RERANK_RELATIVE_FLOOR)
         )
