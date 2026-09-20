@@ -19,7 +19,9 @@ from app.repositories.questions_repository import QuestionsRepository
 from app.schema.question_schema import CreateQuestion
 from app.services.base_service import BaseService
 from app.services.conversation_context import HISTORY_QUESTIONS
+from app.services.local_answers import BY_INTENT, out_of_scope_answer
 from app.services.retrieval_service import RetrievalService
+from app.services.scope_gate import local_intent
 from rag.qdrant.client import QdrantHttpClient
 from rag.llm.chat_model import LLM_HISTORY_TURNS, OpenAIChat
 
@@ -58,9 +60,12 @@ class QuestionsService(BaseService):
         openai_chat=None,
         retrieval_service=None,
         conversations_repository: ConversationsRepository | None = None,
+        files_repository=None,
     ) -> None:
         self.question_repository = questions_repository
         self.conversations_repository = conversations_repository
+        self.collections_repository = collections_repository
+        self.files_repository = files_repository
         self.retrieval_service = retrieval_service or RetrievalService(
             collections_repository,
             qdrant_client,
@@ -154,6 +159,10 @@ class QuestionsService(BaseService):
         turn_id: UUID | None,
         history: list[tuple[str, str]],
     ):
+        settled = self.local_reply(payload)
+        if settled is not None:
+            return self._save_answer(payload, settled[1], turn_id, [])
+
         stages: list[str] = []
         re_ranked_pairs = self._before_question(
             payload,
@@ -169,7 +178,7 @@ class QuestionsService(BaseService):
                 history=history,
             )
             if re_ranked_pairs
-            else self._empty_answer(stages)
+            else self._empty_answer(payload, stages)
         )
         response = OpenAIChat.strip_source_footer(response)
         # Attribution reads the finished answer, so the footer is built from the
@@ -216,10 +225,51 @@ class QuestionsService(BaseService):
                 task.cancel()
         yield "evidence", task.result()
 
-    @staticmethod
-    def _empty_answer(stages: list[str]) -> str:
+    def _collection_facts(self, payload: CreateQuestion) -> tuple[str, list[str]]:
+        """The collection's name and the documents in it, or blanks if unknown.
+
+        Metadata lookups must never take down an answer, so a repository that
+        is missing or failing degrades to the wording that names neither.
+        """
+        name, files = "ini", []
+        try:
+            collection = self.collections_repository.read_by_id(payload.collection_id)
+            name = getattr(collection, "collection_name", None) or name
+        except Exception as exc:
+            logger.warning("Collection lookup failed ({})", type(exc).__name__)
+        if self.files_repository is not None:
+            try:
+                files = [
+                    file.file_name
+                    for file in self.files_repository.list_by_collection(
+                        payload.collection_id
+                    )
+                    if getattr(file, "file_name", None)
+                ]
+            except Exception as exc:
+                logger.warning("File listing failed ({})", type(exc).__name__)
+        return name, files
+
+    def local_reply(self, payload: CreateQuestion) -> tuple[str, str] | None:
+        """A settled (intent, answer) for messages the corpus cannot answer.
+
+        Greetings and questions about the assistant itself are answered from
+        the collection's metadata: no search, no rewrite, no generation.
+        """
+        intent = local_intent(payload.question_text)
+        reply = BY_INTENT.get(intent or "")
+        if reply is None:
+            return None
+        name, files = self._collection_facts(payload)
+        return intent, reply(name, files)
+
+    def _empty_answer(self, payload: CreateQuestion, stages: list[str]) -> str:
         """Why there is no answer, in the words the user needs."""
-        return OUT_OF_SCOPE_ANSWER if "out_of_scope" in stages else NO_EVIDENCE_ANSWER
+        if "out_of_scope" not in stages:
+            return NO_EVIDENCE_ANSWER
+        # A refusal that names the collection's documents beats a dead end.
+        name, files = self._collection_facts(payload)
+        return out_of_scope_answer(name, files)
 
     @staticmethod
     def _stage_event(stage: str, **detail):
@@ -242,6 +292,19 @@ class QuestionsService(BaseService):
         sources: list = []
         status = "interrupted"
         try:
+            settled = self.local_reply(payload)
+            if settled is not None:
+                intent, accumulated_answer = settled
+                # No search, no rewrite, no generation: the collection's own
+                # metadata already answers this.
+                yield self._stage_event("answering_locally", intent=intent)
+                yield {"data": accumulated_answer}
+                await run_in_threadpool(
+                    self._save_answer, payload, accumulated_answer, turn_id, []
+                )
+                status = "completed"
+                return
+
             re_ranked_pairs = []
             stages: list[str] = []
             async for kind, item in self._retrieve_with_stages(payload, history or []):
@@ -286,7 +349,7 @@ class QuestionsService(BaseService):
                         "data": json.dumps(sources, ensure_ascii=False),
                     }
             else:
-                accumulated_answer = self._empty_answer(stages)
+                accumulated_answer = self._empty_answer(payload, stages)
                 yield {"data": accumulated_answer}
 
             await run_in_threadpool(

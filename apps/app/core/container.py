@@ -120,5 +120,6 @@ class Container(containers.DeclarativeContainer):
         augment_query_generator=augment_query_generator,
         retrieval_service=retrieval_service,
         openai_chat=openai_chat,
+        files_repository=files_repository,
     )
     auth_service = providers.Factory(AuthService, users_repository=users_repository)

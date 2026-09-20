@@ -9,8 +9,9 @@ from uuid import uuid4
 from agents.standalone_question import clean_question
 from app.schema.question_schema import CreateQuestion
 from app.services.conversation_context import contextual_query, is_followup
+from app.services.local_answers import capability_answer, out_of_scope_answer
 from app.services.retrieval_service import RetrievalService
-from app.services.scope_gate import trivial_reason
+from app.services.scope_gate import local_intent, trivial_reason
 from rag.llm.chat_model import OpenAIChat
 
 HISTORY = [("Bagaimana cara mendaftar beasiswa KIP?", "Pendaftaran dibuka [S1].")]
@@ -27,6 +28,58 @@ class SyntacticGateTests(unittest.TestCase):
         # Evidence decides this one, not its length.
         self.assertIsNone(trivial_reason("beasiswa"))
         self.assertIsNone(trivial_reason("Apa syarat pendaftaran?"))
+
+
+class LocalIntentTests(unittest.TestCase):
+    """Questions about the assistant, answered from metadata not from passages.
+
+    Measured against the live index, these score 0.0008-0.093: no passage
+    answers them, so no threshold can rescue them.
+    """
+
+    def test_questions_about_the_collection_are_named(self):
+        for question in (
+            "Apa yang bisa saya tanyakan di sini?",
+            "Dokumen apa saja yang ada di sini?",
+            "Kamu bisa bantu apa?",
+            "What can I ask here?",
+        ):
+            self.assertEqual(local_intent(question), "capability", question)
+
+    def test_a_long_question_that_merely_mentions_documents_is_searched(self):
+        # A real content question, not a question about the assistant.
+        self.assertIsNone(
+            local_intent(
+                "Dokumen apa saja yang mengatur kewajiban publikasi dosen "
+                "menurut renstra 2026?"
+            )
+        )
+
+    def test_a_greeting_is_still_a_greeting(self):
+        self.assertEqual(local_intent("halo"), "small_talk")
+
+    def test_an_ordinary_question_is_left_to_retrieval(self):
+        self.assertIsNone(local_intent("Siapa dosen pengampu Sistem Operasi?"))
+
+
+class LocalAnswerTests(unittest.TestCase):
+    FILES: ClassVar[list[str]] = ["Module-Handbook.pdf", "Silabus.pdf"]
+
+    def test_the_capability_reply_lists_the_real_documents(self):
+        answer = capability_answer("Kurikulum S1", self.FILES)
+        self.assertIn("Kurikulum S1", answer)
+        for name in self.FILES:
+            self.assertIn(name, answer)
+
+    def test_an_empty_collection_says_so_instead_of_inviting_questions(self):
+        answer = capability_answer("Kurikulum S1", [])
+        self.assertIn("belum memiliki dokumen", answer)
+        self.assertNotIn("sitasi", answer)
+
+    def test_the_refusal_names_what_is_available(self):
+        answer = out_of_scope_answer("Kurikulum S1", self.FILES)
+        self.assertIn("di luar cakupan", answer)
+        self.assertIn(self.FILES[0], answer)
 
 
 class FollowUpTests(unittest.TestCase):

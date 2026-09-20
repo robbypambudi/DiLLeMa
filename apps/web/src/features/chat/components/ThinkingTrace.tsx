@@ -9,6 +9,10 @@ const STAGES: Record<string, { running: (detail: StageDetail) => string; done: (
     running: () => 'Rephrasing your question',
     done: () => 'Rephrased your question',
   },
+  answering_locally: {
+    running: (detail) => LOCAL_INTENT[String(detail.intent ?? '')] ?? LOCAL_INTENT[''],
+    done: (detail) => LOCAL_INTENT[String(detail.intent ?? '')] ?? LOCAL_INTENT[''],
+  },
   following_up: {
     running: () => 'Reading this as a follow-up',
     done: () => 'Read this as a follow-up',
@@ -45,6 +49,15 @@ const STAGES: Record<string, { running: (detail: StageDetail) => string; done: (
     running: (detail) => outOfScope(detail),
     done: (detail) => outOfScope(detail),
   },
+}
+
+/** Answered from what this collection is, rather than from what it says. */
+const LOCAL_INTENT: Record<string, string> = {
+  '': 'Answered from this collection',
+  capability: 'Listed what this collection holds',
+  small_talk: 'Said hello',
+  too_short: 'Asked for a fuller question',
+  no_words: 'Asked for a fuller question',
 }
 
 /** Why the question was stopped early, phrased for the person who asked it. */
