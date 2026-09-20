@@ -110,6 +110,12 @@ class ConversationsRepository:
                 if turn.question_text
             ]
 
+    def answer_scope(self, conversation_id: UUID, user_id: UUID) -> dict:
+        """Resolve owned conversation scope without loading unbounded history."""
+        with self.session_factory() as session:
+            conversation = self._owned(session, conversation_id, user_id)
+            return {"collection_id": conversation.collection_id}
+
     def delete(self, conversation_id: UUID, user_id: UUID) -> None:
         with self.session_factory() as session:
             conversation = self._owned(session, conversation_id, user_id, lock=True)

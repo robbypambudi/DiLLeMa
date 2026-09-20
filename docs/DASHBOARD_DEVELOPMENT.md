@@ -140,6 +140,13 @@ and graph projection. `RetrievalService` combines vector evidence and approved
 graph evidence. `QuestionsService` coordinates generation, citations and saving.
 Its existing direct-construction arguments remain supported for callers and tests.
 
+The separate authenticated `/v1/answer` JSON path uses
+`services/adaptive/` and application-owned async resources. Its routing, budgets,
+extractive validation, metrics and operational limits are documented in
+[`ADAPTIVE_RAG.md`](ADAPTIVE_RAG.md). The legacy question/SSE path retains its
+existing service contract; adaptive scope lookup reads only owned conversation
+metadata and does not load or persist conversation turns.
+
 Backend rules:
 
 - Keep HTTP routes small. Put business decisions and orchestration in services,

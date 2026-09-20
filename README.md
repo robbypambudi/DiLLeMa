@@ -6,6 +6,11 @@ DiLLeMa is a distributed Large Language Model (LLM) serving system that provides
 
 ## Features
 
+The dashboard API now includes an authenticated adaptive answering path,
+`POST /v1/answer`, with direct generation, conventional RAG, bounded agentic
+retrieval, evidence validation and operational metrics. See the
+[architecture, configuration and deployment runbook](docs/ADAPTIVE_RAG.md).
+
 An opt-in Knowledge Graph pilot for DiLLeMa v2 is available in `apps/`. See the
 [implementation plan and agent handoff](docs/DILLEMA_V2_PLAN.md),
 [setup/runbook](docs/DILLEMA_V2_RUNBOOK.md),

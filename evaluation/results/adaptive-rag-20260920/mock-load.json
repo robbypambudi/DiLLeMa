@@ -1,0 +1,35 @@
+{
+  "mode": "mock_http",
+  "requests_per_strategy": 100,
+  "concurrency": 8,
+  "warmup": 3,
+  "note": "Closed-loop client latency; mock uses synthetic 5ms retrieval/10ms generation, not production capacity or answer quality.",
+  "strategies": {
+    "rag": {
+      "p50_ms": 12.596200016560033,
+      "p95_ms": 14.958417974412441,
+      "p99_ms": 16.020587005186826,
+      "throughput_rps": 587.3215496396273,
+      "http_error_rate": 0.0,
+      "degraded_or_abstained_rate": 1.0,
+      "mean_retrieval_calls": 1.0,
+      "mean_llm_calls": 0.0,
+      "mean_agent_steps": 0.0,
+      "mean_input_tokens": 0.0,
+      "mean_output_tokens": 0.0
+    },
+    "agentic_rag": {
+      "p50_ms": 34.903867985121906,
+      "p95_ms": 37.2392029967159,
+      "p99_ms": 37.86896000383422,
+      "throughput_rps": 213.9691222081627,
+      "http_error_rate": 0.0,
+      "degraded_or_abstained_rate": 0.0,
+      "mean_retrieval_calls": 3.0,
+      "mean_llm_calls": 1.0,
+      "mean_agent_steps": 2.0,
+      "mean_input_tokens": 200.0,
+      "mean_output_tokens": 60.0
+    }
+  }
+}

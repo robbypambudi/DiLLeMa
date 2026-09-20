@@ -1,0 +1,24 @@
+{
+  "application_tests": {
+    "run": 247,
+    "passed": 215,
+    "skipped": 32,
+    "failed": 0,
+    "skip_reason": "Disposable PostgreSQL test databases not configured"
+  },
+  "coverage": [
+    "FastAPI authentication, scope, response contracts",
+    "Actual in-memory Qdrant hybrid filters, deletion and embedding cache",
+    "Actual async OpenAI-compatible client with mocked HTTP response",
+    "Routing, escalation, bounded iterations and call/token limits",
+    "Timeout, cancellation, malformed output, reranker and vector failures",
+    "Trace, usage, cost and metrics"
+  ],
+  "not_run": [
+    "Live model answer-quality evaluation",
+    "Live Qdrant/server latency or ANN recall",
+    "Live staging/production load test",
+    "PostgreSQL opt-in suites"
+  ],
+  "deployment_performed": false
+}
