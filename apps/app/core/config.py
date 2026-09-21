@@ -103,6 +103,19 @@ class Settings(BaseSettings):
     # the generator: a small model reads every page it is given as an answer,
     # so a weak neighbour becomes a wrong fact. 0 disables the cut.
     RERANK_RELATIVE_FLOOR: float = Field(default=0.5, ge=0.0, le=1.0)
+    # A question asking for a set ("apa saja", "daftar", "sebutkan") needs more
+    # than the single best passage. Measured on the live index: "apa saja
+    # matakuliah semester 3" reached the generator with 2 of the 12 passages
+    # that name semester 3, because the settings above are tuned to hand over
+    # one confident answer. These three widen that, and only for such questions.
+    # The floor is measured, not guessed: for "apa saja matakuliah semester 3"
+    # the four passages that name semester 3 scored 1.00, 0.99, 0.61 and 0.30
+    # of the best, and everything below 0.30 named a different semester. One
+    # question is thin evidence, so this stays well above nothing and well
+    # below the single-fact floor rather than pretending to be exact.
+    LISTING_TOP_RESULTS: int = Field(default=16, ge=1, le=50)
+    LISTING_RELATIVE_FLOOR: float = Field(default=0.3, ge=0.0, le=1.0)
+    LISTING_MAX_PAGES: int = Field(default=8, ge=1, le=30)
     # Rewrite each question with the LLM (English translation + keywords)
     # before searching, unless the request says otherwise. It is what reaches
     # English passages from an Indonesian question; it costs one short LLM call.

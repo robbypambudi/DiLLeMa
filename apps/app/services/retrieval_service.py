@@ -16,6 +16,24 @@ from rag.evidence import source_key
 
 MAX_PAGES_FOR_GENERATOR = 4
 
+# Questions that ask for a set rather than a fact: "apa saja", "daftar",
+# "sebutkan". The rest of the pipeline is tuned to hand the generator the one
+# best passage, which is right for "berapa SKS Sistem Operasi?" and wrong here
+# -- measured on the live index, "apa saja matakuliah semester 3" reached the
+# generator with 2 of the 12 passages that mention semester 3.
+_LISTING = re.compile(
+    r"\bapa\s*(saja|aja)\b|\bsiapa\s*(saja|aja)\b|\bmana\s*(saja|aja)\b"
+    r"|\bdaftar\b|\bsebutkan\b|\brinci(an)?\b"
+    r"|\b(semua|seluruh)\b"
+    r"|\blist\s+(of|all)\b|\bwhat\s+are\s+(all\s+)?the\b",
+    re.IGNORECASE,
+)
+
+
+def is_listing(question: str) -> bool:
+    """Whether the question asks for every match, not the single best one."""
+    return bool(_LISTING.search(question or ""))
+
 
 def _ignore_stage(stage: str, **detail) -> None:
     """Default progress sink for callers that do not report retrieval stages."""
@@ -464,10 +482,18 @@ class RetrievalService:
             :2
         ]
         rerank_options = {"queries": variants} if len(variants) > 1 else {}
+        listing = is_listing(payload.question_text)
+        if listing:
+            # A set-shaped question is answered badly by the best passage
+            # alone: widen what reaches the generator, and say so in the trace.
+            report("listing")
+        top_results = (
+            settings.LISTING_TOP_RESULTS if listing else (12 if graph_used else 8)
+        )
         report("ranking", candidates=len(pairs), graph=int(graph_used))
         ranked = self.re_ranking.rank(
             pairs=pairs,
-            top_results=12 if graph_used else 8,
+            top_results=top_results,
             min_score=settings.RERANK_MIN_SCORE,
             **rerank_options,
         )
@@ -481,8 +507,12 @@ class RetrievalService:
             )
             return []
         report("reading", passages=len(ranked))
-        packed = pack_parent_pages(
-            drop_weak_evidence(ranked, settings.RERANK_RELATIVE_FLOOR)
+        floor = (
+            settings.LISTING_RELATIVE_FLOOR
+            if listing
+            else settings.RERANK_RELATIVE_FLOOR
         )
+        pages = settings.LISTING_MAX_PAGES if listing else MAX_PAGES_FOR_GENERATOR
+        packed = pack_parent_pages(drop_weak_evidence(ranked, floor), pages)
         _log_evidence_trace(payload, pairs, ranked, packed, "packed")
         return packed

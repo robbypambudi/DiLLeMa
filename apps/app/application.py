@@ -1,5 +1,6 @@
 """Application composition and resource lifetime, separate from the ASGI entrypoint."""
 
+import threading
 from contextlib import asynccontextmanager
 import time
 from uuid import uuid4
@@ -17,6 +18,37 @@ from app.services.adaptive.config import AdaptiveConfig
 from app.services.adaptive.telemetry import Metrics, Trace
 
 
+def _warm_reranker(container: Container) -> None:
+    """Load and exercise the cross-encoder without holding up startup.
+
+    The embedder is already warmed above; the reranker is the larger model and
+    was not, so every restart made one user wait seconds for it to load -- and
+    on a CPU deployment that is the slowest thing in the request. One tiny
+    scoring pass also forces the first forward pass, where a lazily
+    initialised backend does its remaining setup.
+
+    It runs on a daemon thread: the API should answer metadata and uploads
+    while a 568M model loads, and a process that exits meanwhile must not wait
+    for it. A reranker that cannot load is logged and retried on demand, since
+    retrieval already degrades gracefully when its probe is unavailable.
+    """
+
+    def warm() -> None:
+        try:
+            reranker = container.re_ranking()
+            reranker.best_score([["warm", "warm"]], "warm")
+            if getattr(reranker, "prefilter", None) is not None:
+                logger.info("Rerank prefilter warmed")
+            logger.info("Reranker warmed and ready")
+        except Exception as exc:
+            logger.warning(
+                "Reranker unavailable at startup ({}); it will be retried on demand",
+                type(exc).__name__,
+            )
+
+    threading.Thread(target=warm, name="warm-reranker", daemon=True).start()
+
+
 def create_app(container: Container | None = None) -> FastAPI:
     container = container if container is not None else Container()
 
@@ -27,6 +59,7 @@ def create_app(container: Container | None = None) -> FastAPI:
         try:
             container.qdrant_client()
             container.embedding_model()
+            _warm_reranker(container)
             container.auth_service().seed_admin_if_empty()
             yield
         finally:

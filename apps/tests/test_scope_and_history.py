@@ -10,7 +10,7 @@ from agents.standalone_question import clean_question
 from app.schema.question_schema import CreateQuestion
 from app.services.conversation_context import contextual_query, is_followup
 from app.services.local_answers import capability_answer, out_of_scope_answer
-from app.services.retrieval_service import RetrievalService
+from app.services.retrieval_service import RetrievalService, is_listing
 from app.services.scope_gate import local_intent, trivial_reason
 from rag.llm.chat_model import OpenAIChat
 
@@ -154,6 +154,72 @@ class ScopeProbeTests(unittest.TestCase):
             self.assertEqual(len(service.retrieve(payload, True)), 1)
         augment.augment.assert_called_once()
         rerank.rank.assert_called_once()
+
+
+class ListingQuestionTests(unittest.TestCase):
+    """A question asking for a set is given more evidence than one asking a fact.
+
+    Measured on the live index: "apa saja matakuliah semester 3" reached the
+    generator with 2 of the 12 passages naming semester 3, because the floor
+    and page cap are tuned to hand over one confident answer.
+    """
+
+    def test_set_shaped_questions_are_recognised(self):
+        for question in (
+            "Apa saja matakuliah pada semester 3?",
+            "Sebutkan mata kuliah pilihan",
+            "Daftar dosen pengampu",
+            "What are all the elective courses?",
+        ):
+            self.assertTrue(is_listing(question), question)
+
+    def test_single_fact_questions_are_not(self):
+        for question in (
+            "Berapa SKS mata kuliah Sistem Operasi?",
+            "Apa kode mata kuliah Struktur Data?",
+        ):
+            self.assertFalse(is_listing(question), question)
+
+    def test_a_listing_question_asks_the_reranker_for_more(self):
+        from app.core.config import settings
+
+        rerank = Mock()
+        rerank.best_score.return_value = 0.9
+        rerank.rank.side_effect = lambda pairs, **kw: [
+            [pair[0], pair[1], {**pair[2], "rerank_score": 0.9}] for pair in pairs
+        ]
+        collections = Mock()
+        collections.read_by_id.return_value = SimpleNamespace(
+            vectordb_collection_name="pilot", collection_name="pilot"
+        )
+        vectors = Mock()
+        vectors.search.return_value = [
+            SimpleNamespace(
+                id=index,
+                score=0.9,
+                payload={"document": f"teks {index}", "file_id": str(uuid4()), "page": 1},
+            )
+            for index in range(5)
+        ]
+        embedding = Mock()
+        embedding.encode.return_value = SimpleNamespace(tolist=lambda: [0.1])
+        service = RetrievalService(
+            collections, vectors, Mock(), None, embedding, rerank
+        )
+        stages = []
+        service.retrieve(
+            CreateQuestion(
+                question_id="q",
+                question_text="Apa saja mata kuliah semester 3?",
+                collection_id=uuid4(),
+            ),
+            False,
+            lambda stage, **detail: stages.append(stage),
+        )
+        self.assertIn("listing", stages)
+        self.assertEqual(
+            rerank.rank.call_args.kwargs["top_results"], settings.LISTING_TOP_RESULTS
+        )
 
 
 class ConversationDecisionTests(unittest.TestCase):
