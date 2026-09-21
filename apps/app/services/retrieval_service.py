@@ -39,6 +39,17 @@ def _ignore_stage(stage: str, **detail) -> None:
     """Default progress sink for callers that do not report retrieval stages."""
 
 
+def _collection_label(collection) -> str:
+    """The collection's display name, or nothing when a caller has no name.
+
+    Only a label in the progress trace. Requiring it broke the evaluation
+    harness, which builds a minimal collection object with the one field
+    retrieval actually needs -- a cosmetic field must not decide who may call
+    this service.
+    """
+    return str(getattr(collection, "collection_name", "") or "")
+
+
 def _resolves_nothing(rewritten: str, question: str) -> bool:
     """Whether a rewrite added nothing the original question did not have.
 
@@ -313,7 +324,7 @@ class RetrievalService:
             report("out_of_scope", reason=reason)
             return None
 
-        report("searching", queries=1, collection=collection.collection_name)
+        report("searching", queries=1, collection=_collection_label(collection))
         bare_pairs = self._search_into(
             candidates, seed_file_ids, collection, payload, question
         )
@@ -433,7 +444,7 @@ class RetrievalService:
                 report(
                     "searching",
                     queries=len(extra),
-                    collection=collection.collection_name,
+                    collection=_collection_label(collection),
                 )
             for query in extra:
                 self._search_into(candidates, seed_file_ids, collection, payload, query)
