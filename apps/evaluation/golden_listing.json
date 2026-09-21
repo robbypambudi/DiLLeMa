@@ -1,0 +1,76 @@
+{
+ "_note": "Aggregate questions: the answer is a set, not one fact. Built from the COURSE LIST table and cross-checked against that table's own 'Total Credits' line; semesters whose extraction disagreed with the document were left out rather than guessed. Every answer string was verified to appear verbatim in the indexed corpus. Review before trusting: these were drafted automatically.",
+ "documents": {
+  "handbook": "Module-Handbook-Bachelor-of-Informatics-Program-ITS.pdf"
+ },
+ "questions": [
+  {
+   "doc": "handbook",
+   "q": "Apa saja mata kuliah pada semester 1?",
+   "answers": [
+    "Calculus 1",
+    "Fundamental Programming",
+    "Digital System",
+    "Linear Algebra",
+    "Database System"
+   ]
+  },
+  {
+   "doc": "handbook",
+   "q": "Apa saja mata kuliah pada semester 2?",
+   "answers": [
+    "Data Structure",
+    "Operating System",
+    "Computer Organization",
+    "Numerical Computation",
+    "Calculus 2",
+    "Introduction to Intelligent Electrical and Informatics Technology"
+   ]
+  },
+  {
+   "doc": "handbook",
+   "q": "Apa saja mata kuliah pada semester 4?",
+   "answers": [
+    "Network Programming",
+    "Probabilistic and Statistic",
+    "Automata",
+    "Database Management",
+    "Algorithm Design and Analysis",
+    "Machine Learning",
+    "Software Design"
+   ]
+  },
+  {
+   "doc": "handbook",
+   "q": "Apa saja mata kuliah pada semester 6?",
+   "answers": [
+    "English",
+    "Technopreneurship",
+    "Religion",
+    "Civics",
+    "Mobile Programming",
+    "Human and Computer Interaction",
+    "Capstone Project",
+    "Practical Work"
+   ]
+  },
+  {
+   "doc": "handbook",
+   "q": "Apa saja mata kuliah pada semester 7?",
+   "answers": [
+    "Indonesian",
+    "Pancasila",
+    "Applied Technology and Digital Transformation",
+    "Professional Ethics",
+    "Undergraduate Pre-Thesis"
+   ]
+  },
+  {
+   "doc": "handbook",
+   "q": "Apa saja mata kuliah pada semester 8?",
+   "answers": [
+    "Final Project"
+   ]
+  }
+ ]
+}
