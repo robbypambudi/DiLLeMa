@@ -173,6 +173,13 @@ def cmd_serve(args):
     serve.run(app, blocking=True)
 
 
+def cmd_status(args):
+    from dillema.status import print_status
+
+    colour = None if args.colour is None else args.colour
+    sys.exit(print_status(timeout=args.timeout, colour=colour))
+
+
 def cmd_dashboard(args):
     from dillema.dashboard import start_dashboard, stop_dashboard
 
@@ -293,6 +300,26 @@ def main():
         help="Kill Ray processes with SIGKILL (clears stale raylets)",
     )
     stop_parser.set_defaults(func=cmd_stop)
+
+    # Status
+    status_parser = subparsers.add_parser(
+        "status", help="Show which DiLLeMa services are running"
+    )
+    status_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=2.0,
+        help="Seconds to wait for each service before calling it unreachable",
+    )
+    status_parser.add_argument(
+        "--colour",
+        "--color",
+        dest="colour",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Force colour on or off (default: on when writing to a terminal)",
+    )
+    status_parser.set_defaults(func=cmd_status)
 
     start_parser = subparsers.add_parser("start", help="Start apps")
     start_sub = start_parser.add_subparsers(dest="target")
