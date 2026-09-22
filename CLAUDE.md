@@ -33,12 +33,12 @@ uv build                     # or: ./build.sh  (uninstalls, builds, reinstalls l
 
 Entry point is `dillema.cli:main` (registered as the `dillema` console script). Subcommands:
 
-- `dillema head` — runs `ray start --head` via subprocess, prints the worker join address.
-- `dillema worker --address ip:port` — runs `ray start --address=...`.
-- `dillema stop` — runs `ray stop`.
+- `dillema head [--node-ip-address IP]` — runs `ray start --head` via subprocess, prints the worker join address.
+- `dillema worker --address ip:port [--node-ip-address IP]` — runs `ray start --address=...`. On a multi-homed/VPN host, pass `--node-ip-address` on both head and worker so Ray advertises the VPN IP instead of the default-route one.
+- `dillema stop [--force]` — runs `ray stop` (`--force` kills stale Ray processes with SIGKILL).
 - `dillema serve --model-id ... --model-source ...` — `ray.init(address=...)`, builds an `LLMServe` app, and `serve.run(..., blocking=True)`.
 
-The head/worker/stop commands are thin wrappers that **shell out to the `ray` CLI**; the real serving logic lives in `serve`.
+The head/worker/stop commands are thin wrappers that **shell out to the `ray` CLI**; the real serving logic lives in `serve`. When `RAY_TMPDIR` is set (in `.env`), every `ray start` the CLI runs gets `--temp-dir=$RAY_TMPDIR/ray` — needed on workers too, since a worker without it reuses the head's temp dir path. Use it when `/tmp` is a tmpfs, otherwise Ray logs live in RAM.
 
 ## Securing the endpoint
 

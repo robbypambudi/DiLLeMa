@@ -20,8 +20,19 @@ def get_local_ip():
         s.close()
 
 
+def _ray_temp_dir_args() -> list[str]:
+    # RAY_TMPDIR moves Ray's temp dir (sessions, logs, spilled objects) off
+    # /tmp, which may be a RAM-backed tmpfs. `ray.init`, `ray status` and
+    # `ray stop` read the env var; `ray start` needs the flag too, because a
+    # worker started without it reuses the head's temp dir path.
+    root = os.environ.get("RAY_TMPDIR", "").strip()
+    if not root:
+        return []
+    return [f"--temp-dir={os.path.join(root, 'ray')}"]
+
+
 def cmd_head(args):
-    ip = get_local_ip()
+    ip = args.node_ip_address or get_local_ip()
     cmd = [
         "ray",
         "start",
@@ -29,6 +40,11 @@ def cmd_head(args):
         f"--port={args.port}",
         f"--dashboard-host={args.dashboard_host}",
     ]
+    if args.node_ip_address:
+        # On a multi-homed host (e.g. a VPN), Ray otherwise advertises the
+        # default-route IP, which other nodes may not be able to reach.
+        cmd.append(f"--node-ip-address={args.node_ip_address}")
+    cmd += _ray_temp_dir_args()
     if args.num_cpus is not None:
         # 0 keeps the head a coordinator only: on a head without a GPU, the
         # ingress and other CPU actors then run on the GPU worker, next to
@@ -45,6 +61,9 @@ def cmd_head(args):
 
 def cmd_worker(args):
     cmd = ["ray", "start", f"--address={args.address}"]
+    if args.node_ip_address:
+        cmd.append(f"--node-ip-address={args.node_ip_address}")
+    cmd += _ray_temp_dir_args()
     print(f"Connecting to head node at {args.address}")
     if subprocess.run(cmd).returncode != 0:
         print("✗ Failed to connect worker to head node.")
@@ -53,8 +72,11 @@ def cmd_worker(args):
 
 
 def cmd_stop(args):
+    cmd = ["ray", "stop"]
+    if args.force:
+        cmd.append("--force")
     print("Stopping Ray...")
-    if subprocess.run(["ray", "stop"]).returncode != 0:
+    if subprocess.run(cmd).returncode != 0:
         print("✗ Failed to stop Ray.")
         return
     print("✓ Ray stopped!")
@@ -89,6 +111,7 @@ def _ensure_ray(address: str | None) -> str:
         "--head",
         "--port=6379",
         "--dashboard-host=0.0.0.0",
+        *_ray_temp_dir_args(),
     ]
     if subprocess.run(cmd).returncode != 0:
         sys.exit("Failed to start Ray head node.")
@@ -243,6 +266,11 @@ def main():
         help="CPUs the head offers to workloads; 0 schedules nothing on it "
         "(use on a head without a GPU)",
     )
+    head_parser.add_argument(
+        "--node-ip-address",
+        default=None,
+        help="IP this node advertises to the cluster (e.g. its VPN IP)",
+    )
     head_parser.set_defaults(func=cmd_head)
 
     # Worker
@@ -250,10 +278,20 @@ def main():
     worker_parser.add_argument(
         "--address", required=True, help="Head node address (ip:port)"
     )
+    worker_parser.add_argument(
+        "--node-ip-address",
+        default=None,
+        help="IP this node advertises to the cluster (e.g. its VPN IP)",
+    )
     worker_parser.set_defaults(func=cmd_worker)
 
     # Stop
     stop_parser = subparsers.add_parser("stop", help="Stop Ray cluster")
+    stop_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Kill Ray processes with SIGKILL (clears stale raylets)",
+    )
     stop_parser.set_defaults(func=cmd_stop)
 
     start_parser = subparsers.add_parser("start", help="Start apps")
